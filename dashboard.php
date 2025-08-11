@@ -1,10 +1,13 @@
 <?php
 ob_start();
-include 'includes/navbar.php';
-require_once 'includes/config.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
-require_once 'includes/auth.php';
+include 'includes/config.php';
+include 'includes/db.php';
+include 'includes/i18n.php';
+include 'includes/functions.php';
+include 'includes/auth.php';
+include 'includes/csrf.php';
+include 'includes/upload.php';
+include 'includes/notifications.php';
 require_login();
 
 $errors = [];
@@ -12,81 +15,163 @@ $success = false;
 
 // Handle idea submission with optional image
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify()) {
+        $errors[] = 'CSRF verification failed.';
+    } else {
     $title = trim($_POST['title'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $category_id = intval($_POST['category_id'] ?? 0);
     $is_public = isset($_POST['is_public']) ? 1 : 0;
+    $tags = trim($_POST['tags'] ?? '');
     $image_url = null;
-    // Remove image_url input and only allow file upload
+    
     if (isset($_FILES['idea_image']) && $_FILES['idea_image']['error'] === UPLOAD_ERR_OK) {
-        $ext = strtolower(pathinfo($_FILES['idea_image']['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg','jpeg','png','gif','webp','svg'];
-        if (in_array($ext, $allowed)) {
-            $newname = 'idea_' . time() . '_' . rand(1000,9999) . '.' . $ext;
-            $dest = 'assets/images/ideas/' . $newname;
-            if (!is_dir('assets/images/ideas')) mkdir('assets/images/ideas', 0777, true);
-            if (move_uploaded_file($_FILES['idea_image']['tmp_name'], $dest)) {
-                $image_url = $dest;
-            }
+        $up = upload_image($_FILES['idea_image'], 'ideas');
+        if ($up['ok']) {
+            $image_url = $up['path'];
+        } else {
+            $errors[] = $up['error'] ?? 'upload_failed';
         }
     }
+    
     if (strlen($title) < 3) {
-        $errors[] = 'Title must be at least 3 characters.';
+        $errors[] = __('Title must be at least 3 characters.');
     }
     if (strlen($description) < 10) {
-        $errors[] = 'Description must be at least 10 characters.';
+        $errors[] = __('Description must be at least 10 characters.');
     }
     if ($category_id <= 0) {
-        $errors[] = 'Please select a category.';
+        $errors[] = __('Please select a category.');
     }
+    
     if (empty($errors)) {
-        $stmt = mysqli_prepare($conn, "INSERT INTO ideas (user_id, category_id, title, description, is_public, image_url) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO ideas (user_id, category_id, title, description, is_public, image_url, tags, slug) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         $uid = current_user_id();
-        mysqli_stmt_bind_param($stmt, 'iissis', $uid, $category_id, $title, $description, $is_public, $image_url);
-        if (mysqli_stmt_execute($stmt)) {
+        $slug = create_slug($title);
+        
+        if ($stmt->execute([$uid, $category_id, $title, $description, $is_public, $image_url, $tags, $slug])) {
             $success = true;
+            
+            // Create webhook event
+            $idea_id = $pdo->lastInsertId();
+            trigger_webhook('idea.created', [
+                'idea_id' => $idea_id,
+                'user_id' => $uid,
+                'title' => $title,
+                'category_id' => $category_id
+            ]);
         } else {
-            $errors[] = 'Failed to submit idea. Please try again.';
+            $errors[] = __('Failed to submit idea. Please try again.');
         }
-        mysqli_stmt_close($stmt);
+    }
     }
 }
 $categories = [];
-$res = mysqli_query($conn, "SELECT id, name_en FROM categories");
-while ($row = mysqli_fetch_assoc($res)) {
-    $categories[] = $row;
-}
+$stmt = $pdo->query("SELECT id, name_en, name_ar FROM categories ORDER BY name_en");
+$categories = $stmt->fetchAll();
+
 $my_ideas = [];
-$stmt = mysqli_prepare($conn, "SELECT * FROM ideas WHERE user_id=? ORDER BY created_at DESC");
+$stmt = $pdo->prepare("
+    SELECT i.*, c.name_en as category_name, c.name_ar as category_name_ar,
+           (SELECT COUNT(*) FROM votes WHERE votes.idea_id=i.id AND vote_type='like') as likes,
+           (SELECT COUNT(*) FROM votes WHERE votes.idea_id=i.id AND vote_type='dislike') as dislikes,
+           (SELECT COUNT(*) FROM comments WHERE comments.idea_id=i.id) as comments_count,
+           (SELECT COUNT(*) FROM reactions WHERE reactions.idea_id=i.id) as reactions_count,
+           (SELECT COUNT(*) FROM bookmarks WHERE bookmarks.idea_id=i.id) as bookmarks_count,
+           i.views_count
+    FROM ideas i 
+    LEFT JOIN categories c ON i.category_id = c.id 
+    WHERE i.user_id = ? 
+    ORDER BY i.created_at DESC
+");
 $uid = current_user_id();
-mysqli_stmt_bind_param($stmt, 'i', $uid);
-mysqli_stmt_execute($stmt);
-$res = mysqli_stmt_get_result($stmt);
-while ($row = mysqli_fetch_assoc($res)) {
-    $my_ideas[] = $row;
-}
-mysqli_stmt_close($stmt);
+$stmt->execute([$uid]);
+$my_ideas = $stmt->fetchAll();
+
 $idea_count = count($my_ideas);
 $vote_count = 0;
+$total_views = 0;
 foreach ($my_ideas as $idea) {
-    $votes = get_vote_counts($idea['id']);
-    $vote_count += $votes['like'] + $votes['dislike'];
+    $vote_count += $idea['likes'] + $idea['dislikes'];
+    $total_views += $idea['views_count'] ?? 0;
 }
+
+include 'includes/navbar.php';
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?php echo current_language(); ?>" dir="<?php echo lang_dir(); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - IdeaVote</title>
+    <title><?php echo __('Dashboard'); ?> - IdeaVote</title>
+    <meta name="description" content="<?php echo __('Manage your ideas and track your progress on IdeaVote.'); ?>">
+    
+    <!-- Open Graph Tags -->
+    <meta property="og:title" content="<?php echo __('Dashboard'); ?> - IdeaVote">
+    <meta property="og:description" content="<?php echo __('Manage your ideas and track your progress on IdeaVote.'); ?>">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="<?php echo $_SERVER['REQUEST_URI']; ?>">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body { background: #f8fafc; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; }
-        .navbar-lux { background: #fff !important; box-shadow: 0 8px 32px 0 rgba(24,24,24,0.06); border-bottom: 1px solid #eee; }
-        .gold-gradient { background: linear-gradient(90deg, #FFD700 0%, #FFEF8E 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: #FFD700; }
-        .dashboard-glass { background: rgba(255,255,255,0.95); box-shadow: 0 8px 32px 0 rgba(24,24,24,0.08); border-radius: 32px; border: 1.5px solid #eee; padding: 2.5rem 2rem; }
+        :root {
+            --gold: #FFD700;
+            --gold-light: #FFEF8E;
+            --black: #181818;
+            --gray: #444;
+            --offwhite: #f8fafc;
+            --dark-bg: #1a1a1a;
+            --dark-card: #2d2d2d;
+            --dark-text: #e0e0e0;
+        }
+        
+        [data-theme="dark"] {
+            --black: var(--dark-text);
+            --gray: #b0b0b0;
+            --offwhite: var(--dark-bg);
+        }
+        
+        body { 
+            background: var(--offwhite); 
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif; 
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        .navbar-lux { 
+            background: var(--offwhite) !important; 
+            box-shadow: 0 8px 32px 0 rgba(24,24,24,0.06); 
+            border-bottom: 1px solid #eee; 
+            transition: background-color 0.3s ease;
+        }
+        
+        [data-theme="dark"] .navbar-lux {
+            background: var(--dark-card) !important;
+            border-bottom: 1px solid #444;
+        }
+        
+        .gold-gradient { 
+            background: linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 100%); 
+            -webkit-background-clip: text; 
+            -webkit-text-fill-color: transparent; 
+            background-clip: text; 
+            color: var(--gold); 
+        }
+        
+        .dashboard-glass { 
+            background: rgba(255,255,255,0.95); 
+            box-shadow: 0 8px 32px 0 rgba(24,24,24,0.08); 
+            border-radius: 32px; 
+            border: 1.5px solid #eee; 
+            padding: 2.5rem 2rem; 
+            transition: background 0.3s ease, border-color 0.3s ease;
+        }
+        
+        [data-theme="dark"] .dashboard-glass {
+            background: rgba(45,45,45,0.95);
+            border: 1.5px solid #444;
+        }
         .btn-gold { background: linear-gradient(90deg, #FFD700 0%, #FFEF8E 100%); color: #fff; font-weight: bold; border: none; box-shadow: 0 2px 12px rgba(255,215,0,0.10); }
         .btn-gold:hover { background: linear-gradient(90deg, #FFEF8E 0%, #FFD700 100%); color: #181818; }
         .form-label { color: #181818; font-weight: 500; }
@@ -123,6 +208,7 @@ foreach ($my_ideas as $idea) {
                         </div>
                     <?php endif; ?>
                     <form method="POST" enctype="multipart/form-data" novalidate>
+                        <?= csrf_field(); ?>
                         <div class="mb-3">
                             <label for="title" class="form-label">Title</label>
                             <input type="text" class="form-control" id="title" name="title" required value="<?= htmlspecialchars($_POST['title'] ?? '') ?>">

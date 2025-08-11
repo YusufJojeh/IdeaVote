@@ -1,12 +1,1 @@
-ALTER TABLE users ADD COLUMN bio VARCHAR(255) DEFAULT ''; 
-ALTER TABLE users ADD COLUMN image_url VARCHAR(255) DEFAULT NULL; 
-
-CREATE TABLE IF NOT EXISTS messages (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    sender_id INT,
-    receiver_id INT,
-    message TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-); 
-
-ALTER TABLE ideas ADD COLUMN image_url VARCHAR(255) DEFAULT NULL; 
+-- Consolidated into db/migrations/001_phase1.sql

@@ -5,11 +5,14 @@ require_once 'includes/config.php';
 require_once 'includes/db.php';
 require_once 'includes/functions.php';
 require_once 'includes/auth.php';
+require_once 'includes/csrf.php';
 require_admin();
 
 // Handle add user
 $user_feedback = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_user'])) {
+    if (!csrf_verify()) { $user_feedback = '<div class="alert alert-danger">CSRF verification failed.</div>'; }
+    else {
     $username = trim($_POST['username']);
     $email = trim($_POST['email']);
     $password = $_POST['password'];
@@ -37,8 +40,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_user'])) {
         mysqli_stmt_close($stmt);
     }
 }
+}
 // Handle edit user
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
+    if (!csrf_verify()) { $user_feedback = '<div class="alert alert-danger">CSRF verification failed.</div>'; }
+    else {
     $edit_id = intval($_POST['edit_id']);
     $username = trim($_POST['edit_username']);
     $email = trim($_POST['edit_email']);
@@ -72,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
         mysqli_stmt_close($stmt);
     }
 }
+}
 // Handle delete user
 if (isset($_GET['delete_user'])) {
     $id = intval($_GET['delete_user']);
@@ -93,6 +100,8 @@ $categories = mysqli_query($conn, "SELECT * FROM categories ORDER BY id ASC");
 // Handle add/edit/delete for ideas
 $idea_feedback = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_idea'])) {
+    if (!csrf_verify()) { $idea_feedback = '<div class="alert alert-danger">CSRF verification failed.</div>'; }
+    else {
     $title = trim($_POST['title']);
     $description = trim($_POST['description']);
     $category_id = intval($_POST['category_id']);
@@ -111,7 +120,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_idea'])) {
         mysqli_stmt_close($stmt);
     }
 }
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_idea'])) {
+    if (!csrf_verify()) { $idea_feedback = '<div class="alert alert-danger">CSRF verification failed.</div>'; }
+    else {
     $edit_id = intval($_POST['edit_id']);
     $title = trim($_POST['edit_title']);
     $description = trim($_POST['edit_description']);
@@ -131,6 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_idea'])) {
         mysqli_stmt_close($stmt);
     }
 }
+}
 if (isset($_GET['delete_idea'])) {
     $id = intval($_GET['delete_idea']);
     mysqli_query($conn, "DELETE FROM ideas WHERE id=$id");
@@ -142,6 +155,8 @@ if ($tab == 'ideas' && isset($_GET['msg']) && $_GET['msg'] === 'deleted') {
 // Handle add/edit/delete for categories
 $cat_feedback = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_category'])) {
+    if (!csrf_verify()) { $cat_feedback = '<div class="alert alert-danger">CSRF verification failed.</div>'; }
+    else {
     $name_en = trim($_POST['name_en']);
     if ($name_en === '') {
         $cat_feedback = '<div class="alert alert-danger">Category name required.</div>';
@@ -156,7 +171,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_category'])) {
         mysqli_stmt_close($stmt);
     }
 }
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_category'])) {
+    if (!csrf_verify()) { $cat_feedback = '<div class="alert alert-danger">CSRF verification failed.</div>'; }
+    else {
     $edit_id = intval($_POST['edit_id']);
     $name_en = trim($_POST['edit_name_en']);
     if ($name_en === '') {
@@ -172,6 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_category'])) {
         mysqli_stmt_close($stmt);
     }
 }
+}
 if (isset($_GET['delete_category'])) {
     $id = intval($_GET['delete_category']);
     mysqli_query($conn, "DELETE FROM categories WHERE id=$id");
@@ -183,6 +202,8 @@ if ($tab == 'categories' && isset($_GET['msg']) && $_GET['msg'] === 'deleted') {
 // Handle edit/delete for comments
 $comment_feedback = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_comment'])) {
+    if (!csrf_verify()) { $comment_feedback = '<div class="alert alert-danger">CSRF verification failed.</div>'; }
+    else {
     $edit_id = intval($_POST['edit_id']);
     $comment = trim($_POST['edit_comment']);
     if (strlen($comment) < 2) {
@@ -197,6 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_comment'])) {
         }
         mysqli_stmt_close($stmt);
     }
+}
 }
 if (isset($_GET['delete_comment'])) {
     $id = intval($_GET['delete_comment']);
@@ -350,7 +372,8 @@ ob_end_flush();
                         <div class="modal fade" id="editUserModal<?= $u['id'] ?>" tabindex="-1" aria-labelledby="editUserModalLabel<?= $u['id'] ?>" aria-hidden="true">
                           <div class="modal-dialog">
                             <div class="modal-content">
-                              <form method="POST">
+                               <form method="POST">
+                                 <?= csrf_field(); ?>
                                 <div class="modal-header">
                                   <h5 class="modal-title gold-gradient" id="editUserModalLabel<?= $u['id'] ?>">Edit User</h5>
                                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -396,7 +419,8 @@ ob_end_flush();
                 <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
                   <div class="modal-dialog">
                     <div class="modal-content">
-                      <form method="POST">
+                               <form method="POST">
+                                 <?= csrf_field(); ?>
                         <div class="modal-header">
                           <h5 class="modal-title gold-gradient" id="addUserModalLabel">Add User</h5>
                           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -455,7 +479,8 @@ ob_end_flush();
                         <div class="modal fade" id="editIdeaModal<?= $i['id'] ?>" tabindex="-1" aria-labelledby="editIdeaModalLabel<?= $i['id'] ?>" aria-hidden="true">
                           <div class="modal-dialog">
                             <div class="modal-content">
-                              <form method="POST">
+                       <form method="POST">
+                         <?= csrf_field(); ?>
                                 <div class="modal-header">
                                   <h5 class="modal-title gold-gradient" id="editIdeaModalLabel<?= $i['id'] ?>">Edit Idea</h5>
                                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -503,7 +528,8 @@ ob_end_flush();
                 <div class="modal fade" id="addIdeaModal" tabindex="-1" aria-labelledby="addIdeaModalLabel" aria-hidden="true">
                   <div class="modal-dialog">
                     <div class="modal-content">
-                      <form method="POST">
+                               <form method="POST">
+                                 <?= csrf_field(); ?>
                         <div class="modal-header">
                           <h5 class="modal-title gold-gradient" id="addIdeaModalLabel">Add Idea</h5>
                           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -584,7 +610,8 @@ ob_end_flush();
                         <div class="modal fade" id="editCommentModal<?= $c['id'] ?>" tabindex="-1" aria-labelledby="editCommentModalLabel<?= $c['id'] ?>" aria-hidden="true">
                           <div class="modal-dialog">
                             <div class="modal-content">
-                              <form method="POST">
+                       <form method="POST">
+                         <?= csrf_field(); ?>
                                 <div class="modal-header">
                                   <h5 class="modal-title gold-gradient" id="editCommentModalLabel<?= $c['id'] ?>">Edit Comment</h5>
                                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>

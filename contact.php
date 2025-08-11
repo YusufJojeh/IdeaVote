@@ -1,9 +1,13 @@
 <?php
 ob_start();
 include 'includes/navbar.php';
-$success = false;
 $error = '';
+require_once 'includes/csrf.php';
+$success = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify()) {
+        $error = 'CSRF verification failed.';
+    } else {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $message = trim($_POST['message'] ?? '');
@@ -12,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         // Demo: pretend to send email
         $success = true;
+    }
     }
 }
 ?>
@@ -38,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="alert alert-danger"> <?= htmlspecialchars($error) ?> </div>
                     <?php endif; ?>
                     <form method="POST" novalidate>
+                        <?= csrf_field(); ?>
                         <div class="mb-3">
                             <label for="name" class="form-label">Name</label>
                             <input type="text" class="form-control" id="name" name="name" required value="<?= htmlspecialchars($_POST['name'] ?? '') ?>">

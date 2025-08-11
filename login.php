@@ -4,32 +4,59 @@ include 'includes/navbar.php';
 require_once 'includes/db.php';
 require_once 'includes/functions.php';
 require_once 'includes/auth.php';
+require_once 'includes/csrf.php';
 
 $errors = [];
+if (!empty($_SESSION['session_expired'])) {
+    $errors[] = 'Your session has expired. Please log in again.';
+    unset($_SESSION['session_expired']);
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
-    if (!$username || !$password) {
-        $errors[] = 'Please enter both username and password.';
+    if (!csrf_verify()) {
+        $errors[] = 'CSRF verification failed.';
     } else {
-        $stmt = mysqli_prepare($conn, "SELECT id, username, password, is_admin FROM users WHERE username=?");
-        mysqli_stmt_bind_param($stmt, 's', $username);
-        mysqli_stmt_execute($stmt);
-        $result = mysqli_stmt_get_result($stmt);
-        if ($row = mysqli_fetch_assoc($result)) {
-            if (password_verify($password, $row['password'])) {
-                $_SESSION['user_id'] = $row['id'];
-                $_SESSION['username'] = $row['username'];
-                $_SESSION['is_admin'] = $row['is_admin'];
-                header('Location: dashboard.php');
-                exit();
-            } else {
-                $errors[] = 'Incorrect password.';
-            }
-        } else {
-            $errors[] = 'User not found.';
+        // Rate limiting: block if > 5 attempts in last 15 minutes for IP or username
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $ipBin = get_client_ip_binary();
+        $block = false;
+        $since = date('Y-m-d H:i:s', time() - 15 * 60);
+        $sql = "SELECT COUNT(*) as c FROM login_attempts WHERE occurred_at >= ? AND (ip = ? OR username = ?)";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$since, $ipBin, $username]);
+        $row = $stmt->fetch();
+        if (($row['c'] ?? 0) >= 5) {
+            $block = true;
         }
-        mysqli_stmt_close($stmt);
+        if ($block) {
+            $errors[] = 'Too many login attempts. Please try again later.';
+        } else {
+            if (!$username || !$password) {
+                $errors[] = 'Please enter both username and password.';
+            } else {
+                $stmt = $pdo->prepare("SELECT id, username, password, is_admin FROM users WHERE username=? OR email=?");
+                $stmt->execute([$username, $username]);
+                if ($row = $stmt->fetch()) {
+                    if (password_verify($password, $row['password'])) {
+                        session_regenerate_id(true);
+                        $_SESSION['user_id'] = $row['id'];
+                        $_SESSION['username'] = $row['username'];
+                        $_SESSION['is_admin'] = $row['is_admin'];
+                        $_SESSION['last_activity'] = time();
+                        header('Location: dashboard.php');
+                        exit();
+                    } else {
+                        $errors[] = 'Incorrect password.';
+                        $stmt2 = $pdo->prepare("INSERT INTO login_attempts (ip, username, occurred_at) VALUES (?, ?, NOW())");
+                        $stmt2->execute([$ipBin, $username]);
+                    }
+                } else {
+                    $errors[] = 'User not found.';
+                    $stmt2 = $pdo->prepare("INSERT INTO login_attempts (ip, username, occurred_at) VALUES (?, ?, NOW())");
+                    $stmt2->execute([$ipBin, $username]);
+                }
+            }
+        }
     }
 }
 ?>
@@ -75,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     <?php endif; ?>
                     <form method="POST" novalidate>
+                        <?= csrf_field(); ?>
                         <div class="mb-3">
                             <label for="username" class="form-label">Username</label>
                             <input type="text" class="form-control" id="username" name="username" required value="<?= htmlspecialchars($_POST['username'] ?? '') ?>">

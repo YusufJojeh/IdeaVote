@@ -5,11 +5,15 @@ require_once 'includes/config.php';
 require_once 'includes/db.php';
 require_once 'includes/functions.php';
 require_once 'includes/auth.php';
+require_once 'includes/csrf.php';
 
 $errors = [];
 $success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify()) {
+        $errors[] = 'CSRF verification failed.';
+    } else {
     $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -27,26 +31,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($password !== $confirm_password) {
         $errors[] = 'Passwords do not match.';
     }
-    $stmt = mysqli_prepare($conn, "SELECT id FROM users WHERE username=? OR email=?");
-    mysqli_stmt_bind_param($stmt, 'ss', $username, $email);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_store_result($stmt);
-    if (mysqli_stmt_num_rows($stmt) > 0) {
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE username=? OR email=?");
+    $stmt->execute([$username, $email]);
+    if ($stmt->rowCount() > 0) {
         $errors[] = 'Username or email already exists.';
     }
-    mysqli_stmt_close($stmt);
 
     if (empty($errors)) {
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        $avatar_url = 'https://api.dicebear.com/6.x/initials/svg?seed=' . urlencode($username);
-        $stmt = mysqli_prepare($conn, "INSERT INTO users (username, email, password, image_url) VALUES (?, ?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, 'ssss', $username, $email, $hash, $avatar_url);
-        if (mysqli_stmt_execute($stmt)) {
+        $avatar_url = null;
+        $stmt = $pdo->prepare("INSERT INTO users (username, email, password, image_url) VALUES (?, ?, ?, ?)");
+        if ($stmt->execute([$username, $email, $hash, $avatar_url])) {
             $success = true;
         } else {
             $errors[] = 'Registration failed. Please try again.';
         }
-        mysqli_stmt_close($stmt);
+    }
     }
 }
 ?>
@@ -98,6 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     <?php endif; ?>
                     <form method="POST" novalidate>
+                        <?= csrf_field(); ?>
                         <div class="mb-3">
                             <label for="username" class="form-label">Username</label>
                             <input type="text" class="form-control" id="username" name="username" required value="<?= htmlspecialchars($_POST['username'] ?? '') ?>">

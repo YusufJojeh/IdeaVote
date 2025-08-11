@@ -1,30 +1,46 @@
 <?php
 ob_start();
-include 'includes/navbar.php';
-require_once 'includes/config.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
-require_once 'includes/auth.php';
+include 'includes/config.php';
+include 'includes/db.php';
+include 'includes/i18n.php';
+include 'includes/functions.php';
+include 'includes/auth.php';
+include 'includes/csrf.php';
+include 'includes/upload.php';
+include 'includes/notifications.php';
 
 $idea_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 if ($idea_id <= 0) {
     header('Location: ideas.php');
     exit();
 }
-$stmt = mysqli_prepare($conn, "SELECT * FROM ideas WHERE id=?");
-mysqli_stmt_bind_param($stmt, 'i', $idea_id);
-mysqli_stmt_execute($stmt);
-$res = mysqli_stmt_get_result($stmt);
-$idea = mysqli_fetch_assoc($res);
-mysqli_stmt_close($stmt);
+
+// Increment view count
+$stmt = $pdo->prepare("UPDATE ideas SET views_count = views_count + 1 WHERE id = ?");
+$stmt->execute([$idea_id]);
+
+// Fetch idea with enhanced data
+$stmt = $pdo->prepare("
+    SELECT i.*, u.username, u.avatar, u.bio, c.name_en as category_name, c.name_ar as category_name_ar,
+           (SELECT COUNT(*) FROM votes WHERE votes.idea_id=i.id AND vote_type='like') as likes,
+           (SELECT COUNT(*) FROM votes WHERE votes.idea_id=i.id AND vote_type='dislike') as dislikes,
+           (SELECT COUNT(*) FROM comments WHERE comments.idea_id=i.id) as comments_count,
+           (SELECT COUNT(*) FROM reactions WHERE reactions.idea_id=i.id) as reactions_count,
+           (SELECT COUNT(*) FROM bookmarks WHERE bookmarks.idea_id=i.id) as bookmarks_count
+    FROM ideas i 
+    LEFT JOIN users u ON i.user_id = u.id 
+    LEFT JOIN categories c ON i.category_id = c.id 
+    WHERE i.id = ?
+");
+$stmt->execute([$idea_id]);
+$idea = $stmt->fetch();
 
 // Fetch author info
-$stmt = mysqli_prepare($conn, "SELECT username, bio FROM users WHERE id=?");
-mysqli_stmt_bind_param($stmt, 'i', $idea['user_id']);
-mysqli_stmt_execute($stmt);
-$res = mysqli_stmt_get_result($stmt);
-$author = mysqli_fetch_assoc($res);
-mysqli_stmt_close($stmt);
+$author = [
+    'username' => $idea['username'],
+    'bio' => $idea['bio'],
+    'avatar' => $idea['avatar']
+];
 
 if (!$idea || (!$idea['is_public'] && (!is_logged_in() || current_user_id() != $idea['user_id'] && !is_admin()))) {
     header('Location: ideas.php');
@@ -34,105 +50,111 @@ if (!$idea || (!$idea['is_public'] && (!is_logged_in() || current_user_id() != $
 // Handle idea edit and delete
 if (is_logged_in() && current_user_id() == $idea['user_id']) {
     if (isset($_POST['delete_idea'])) {
-        $stmt = mysqli_prepare($conn, "DELETE FROM ideas WHERE id=?");
-        mysqli_stmt_bind_param($stmt, 'i', $idea_id);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-        header('Location: dashboard.php?msg=idea_deleted');
-        exit();
+        if (!csrf_verify()) {
+            echo '<div class="alert alert-danger">CSRF verification failed.</div>';
+        } else {
+            $stmt = $pdo->prepare("DELETE FROM ideas WHERE id=?");
+            $stmt->execute([$idea_id]);
+            header('Location: dashboard.php?msg=idea_deleted');
+            exit();
+        }
     }
     if (isset($_POST['edit_idea'])) {
-        $new_title = trim($_POST['edit_title']);
-        $new_desc = trim($_POST['edit_description']);
-        $new_image_url = trim($_POST['edit_image_url']);
-        $new_is_public = isset($_POST['edit_is_public']) ? 1 : 0;
-        // Handle file upload
-        if (isset($_FILES['edit_image_file']) && $_FILES['edit_image_file']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['edit_image_file']['name'], PATHINFO_EXTENSION));
-            $allowed = ['jpg','jpeg','png','gif','webp','svg'];
-            if (in_array($ext, $allowed)) {
-                $newname = 'idea_' . time() . '_' . rand(1000,9999) . '.' . $ext;
-                $dest = 'assets/images/ideas/' . $newname;
-                if (!is_dir('assets/images/ideas')) mkdir('assets/images/ideas', 0777, true);
-                if (move_uploaded_file($_FILES['edit_image_file']['tmp_name'], $dest)) {
-                    $new_image_url = $dest;
+        if (!csrf_verify()) {
+            echo '<div class="alert alert-danger">CSRF verification failed.</div>';
+        } else {
+            $new_title = trim($_POST['edit_title']);
+            $new_desc = trim($_POST['edit_description']);
+            $new_image_url = $idea['image_url'];
+            $new_is_public = isset($_POST['edit_is_public']) ? 1 : 0;
+            // Handle file upload
+            if (isset($_FILES['edit_image_file']) && $_FILES['edit_image_file']['error'] === UPLOAD_ERR_OK) {
+                $up = upload_image($_FILES['edit_image_file'], 'ideas');
+                if ($up['ok']) {
+                    $new_image_url = $up['path'];
+                } else {
+                    echo '<div class="alert alert-danger">Upload failed.</div>';
                 }
             }
+            $stmt = $pdo->prepare("UPDATE ideas SET title=?, description=?, image_url=?, is_public=? WHERE id=?");
+            $stmt->execute([$new_title, $new_desc, $new_image_url, $new_is_public, $idea_id]);
+            header('Location: idea.php?id=' . $idea_id . '&msg=updated');
+            exit();
         }
-        $stmt = mysqli_prepare($conn, "UPDATE ideas SET title=?, description=?, image_url=?, is_public=? WHERE id=?");
-        mysqli_stmt_bind_param($stmt, 'sssii', $new_title, $new_desc, $new_image_url, $new_is_public, $idea_id);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
-        header('Location: idea.php?id=' . $idea_id . '&msg=updated');
-        exit();
     }
 }
 if (isset($_GET['msg']) && $_GET['msg'] === 'updated') {
     echo '<div class="alert alert-success">Idea updated successfully!</div>';
 }
 
-// Voting logic
+// Voting moved to actions/vote.php
 $vote_msg = '';
-if (is_logged_in() && isset($_POST['vote_type'])) {
-    $vote_type = $_POST['vote_type'] === 'like' ? 'like' : 'dislike';
-    $stmt = mysqli_prepare($conn, "SELECT id FROM votes WHERE user_id=? AND idea_id=?");
-    $uid = current_user_id();
-    mysqli_stmt_bind_param($stmt, 'ii', $uid, $idea_id);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_store_result($stmt);
-    if (mysqli_stmt_num_rows($stmt) == 0) {
-        mysqli_stmt_close($stmt);
-        $stmt = mysqli_prepare($conn, "INSERT INTO votes (user_id, idea_id, vote_type) VALUES (?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, 'iis', $uid, $idea_id, $vote_type);
-        if (mysqli_stmt_execute($stmt)) {
-            $vote_msg = 'Your vote has been recorded!';
-        } else {
-            $vote_msg = 'Failed to record vote.';
-        }
-        mysqli_stmt_close($stmt);
-    } else {
-        $vote_msg = 'You have already voted on this idea.';
-        mysqli_stmt_close($stmt);
-    }
-}
 
 // Comment logic
 $comment_msg = '';
 if (is_logged_in() && isset($_POST['comment']) && trim($_POST['comment'])) {
-    $comment = trim($_POST['comment']);
-    if (strlen($comment) < 2) {
-        $comment_msg = 'Comment is too short.';
+    if (!csrf_verify()) {
+        $comment_msg = __('CSRF verification failed.');
     } else {
-        $stmt = mysqli_prepare($conn, "INSERT INTO comments (user_id, idea_id, comment) VALUES (?, ?, ?)");
-        $uid = current_user_id();
-        mysqli_stmt_bind_param($stmt, 'iis', $uid, $idea_id, $comment);
-        if (mysqli_stmt_execute($stmt)) {
-            $comment_msg = 'Comment added!';
+        $comment = trim($_POST['comment']);
+        if (strlen($comment) < 2) {
+            $comment_msg = __('Comment is too short.');
         } else {
-            $comment_msg = 'Failed to add comment.';
+            $stmt = $pdo->prepare("INSERT INTO comments (user_id, idea_id, comment) VALUES (?, ?, ?)");
+            $uid = current_user_id();
+            if ($stmt->execute([$uid, $idea_id, $comment])) {
+                $comment_msg = __('Comment added!');
+                
+                // Create notification for idea owner
+                if ($idea['user_id'] != $uid) {
+                    notify_comment($idea['user_id'], $uid, $idea_id, $comment);
+                }
+            } else {
+                $comment_msg = __('Failed to add comment.');
+            }
         }
-        mysqli_stmt_close($stmt);
     }
 }
 
 // Get votes and comments
-$votes = get_vote_counts($idea_id);
+$votes = ['like' => $idea['likes'], 'dislike' => $idea['dislikes']];
 $comments = [];
-$stmt = mysqli_prepare($conn, "SELECT c.*, u.username FROM comments c JOIN users u ON c.user_id=u.id WHERE c.idea_id=? ORDER BY c.created_at ASC");
-mysqli_stmt_bind_param($stmt, 'i', $idea_id);
-mysqli_stmt_execute($stmt);
-$res = mysqli_stmt_get_result($stmt);
-while ($row = mysqli_fetch_assoc($res)) {
-    $comments[] = $row;
+$stmt = $pdo->prepare("SELECT c.*, u.username, u.avatar FROM comments c JOIN users u ON c.user_id=u.id WHERE c.idea_id=? ORDER BY c.created_at ASC");
+$stmt->execute([$idea_id]);
+$comments = $stmt->fetchAll();
+
+// Get reactions for this idea
+$stmt = $pdo->prepare("SELECT reaction, COUNT(*) as count FROM reactions WHERE idea_id = ? GROUP BY reaction");
+$stmt->execute([$idea_id]);
+$reactions = $stmt->fetchAll();
+
+// Check if user has bookmarked this idea
+$user_bookmarked = false;
+if (is_logged_in()) {
+    $stmt = $pdo->prepare("SELECT id FROM bookmarks WHERE user_id = ? AND idea_id = ?");
+    $stmt->execute([current_user_id(), $idea_id]);
+    $user_bookmarked = $stmt->fetch() ? true : false;
 }
-mysqli_stmt_close($stmt);
+
+include 'includes/navbar.php';
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?php echo current_language(); ?>" dir="<?php echo lang_dir(); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($idea['title']) ?> - IdeaVote</title>
+    <meta name="description" content="<?= htmlspecialchars(substr($idea['description'], 0, 160)) ?>">
+    
+    <!-- Open Graph Tags -->
+    <meta property="og:title" content="<?= htmlspecialchars($idea['title']) ?> - IdeaVote">
+    <meta property="og:description" content="<?= htmlspecialchars(substr($idea['description'], 0, 160)) ?>">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="<?php echo $_SERVER['REQUEST_URI']; ?>">
+    <?php if (!empty($idea['image_url'])): ?>
+    <meta property="og:image" content="<?= htmlspecialchars($idea['image_url']) ?>">
+    <?php endif; ?>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
@@ -143,12 +165,23 @@ mysqli_stmt_close($stmt);
             --black: #181818;
             --gray: #444;
             --offwhite: #f8fafc;
+            --dark-bg: #1a1a1a;
+            --dark-card: #2d2d2d;
+            --dark-text: #e0e0e0;
         }
+        
+        [data-theme="dark"] {
+            --black: var(--dark-text);
+            --gray: #b0b0b0;
+            --offwhite: var(--dark-bg);
+        }
+        
         body {
             font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
             background: var(--offwhite);
             color: var(--black);
             min-height: 100vh;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         .idea-main-card {
             background: rgba(255,255,255,0.92);
@@ -270,7 +303,9 @@ mysqli_stmt_close($stmt);
                         <span class="dislike"><i class="bi bi-hand-thumbs-down-fill"></i> <?= $votes['dislike'] ?></span>
                     </div>
                     <?php if (is_logged_in()): ?>
-                        <form method="POST" class="d-flex gap-2 mb-3">
+                        <form method="POST" action="actions/vote.php" class="d-flex gap-2 mb-3">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="idea_id" value="<?= $idea_id ?>">
                             <button type="submit" name="vote_type" value="like" class="btn btn-glass"><i class="bi bi-hand-thumbs-up"></i> Like</button>
                             <button type="submit" name="vote_type" value="dislike" class="btn btn-outline-secondary"><i class="bi bi-hand-thumbs-down"></i> Dislike</button>
                         </form>
@@ -282,11 +317,13 @@ mysqli_stmt_close($stmt);
                         <div class="edit-controls d-flex gap-2">
                             <button class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#editIdeaForm"><i class="bi bi-pencil"></i> Edit</button>
                             <form method="POST" onsubmit="return confirm('Delete this idea?');" style="display:inline;">
+                                <?= csrf_field(); ?>
                                 <button type="submit" name="delete_idea" class="btn btn-danger"><i class="bi bi-trash"></i> Delete</button>
                             </form>
                         </div>
                         <div class="collapse mb-4" id="editIdeaForm">
                             <form method="POST" enctype="multipart/form-data">
+                                <?= csrf_field(); ?>
                                 <div class="mb-2">
                                     <label class="form-label">Title</label>
                                     <input type="text" class="form-control" name="edit_title" value="<?= htmlspecialchars($idea['title']) ?>" required>
@@ -315,6 +352,7 @@ mysqli_stmt_close($stmt);
                     <h4 class="mb-3 gold-gradient"><i class="bi bi-chat-dots icon-gold"></i> Comments</h4>
                     <?php if (is_logged_in()): ?>
                         <form method="POST" class="mb-3">
+                            <?= csrf_field(); ?>
                             <div class="input-group">
                                 <input type="text" name="comment" class="form-control" placeholder="Add a comment..." required>
                                 <button class="btn btn-gold" type="submit">Post</button>

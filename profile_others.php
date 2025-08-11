@@ -1,76 +1,60 @@
 <?php
 ob_start();
-include 'includes/navbar.php';
-require_once 'includes/config.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
+include 'includes/config.php';
+include 'includes/db.php';
+include 'includes/functions.php';
+include 'includes/auth.php';
+include 'includes/csrf.php';
+include 'includes/i18n.php';
+include 'includes/notifications.php';
+require_login();
 
-$user_id = isset($_GET['user_id']) ? intval($_GET['user_id']) : 0;
+$user_id = intval($_GET['id'] ?? 0);
 if ($user_id <= 0) {
-    echo '<div class="container py-5"><div class="alert alert-danger">User not found.</div></div>';
+    header('Location: ideas.php');
     exit();
 }
-// Fetch user info
-$stmt = mysqli_prepare($conn, "SELECT username, email, bio, created_at, image_url FROM users WHERE id=?");
-mysqli_stmt_bind_param($stmt, 'i', $user_id);
-mysqli_stmt_execute($stmt);
-$res = mysqli_stmt_get_result($stmt);
-$user = mysqli_fetch_assoc($res);
-mysqli_stmt_close($stmt);
+
+// Get user data
+$stmt = $pdo->prepare("SELECT username, email, bio, created_at, image_url FROM users WHERE id=?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch();
+
 if (!$user) {
-    echo '<div class="container py-5"><div class="alert alert-danger">User not found.</div></div>';
+    header('Location: ideas.php');
     exit();
 }
-// Fetch user's ideas
+
+// Get user's public ideas
 $ideas = [];
-$stmt = mysqli_prepare($conn, "SELECT * FROM ideas WHERE user_id=? AND is_public=1 ORDER BY created_at DESC");
-mysqli_stmt_bind_param($stmt, 'i', $user_id);
-mysqli_stmt_execute($stmt);
-$res = mysqli_stmt_get_result($stmt);
-while ($row = mysqli_fetch_assoc($res)) {
-    $ideas[] = $row;
-}
-mysqli_stmt_close($stmt);
-// Handle chat/messages
-$chat_feedback = '';
-$logged_in = isset($_SESSION['user_id']);
-$my_id = $logged_in ? $_SESSION['user_id'] : 0;
-// Only allow chat if logged in and not viewing own profile
-$can_chat = $logged_in && $my_id != $user_id;
-// (Removed auto-creation of messages table)
-if ($can_chat && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
-    $msg = trim($_POST['message']);
-    if (strlen($msg) < 1) {
-        $chat_feedback = '<div class="alert alert-danger">Message cannot be empty.</div>';
-    } else {
-        $stmt = mysqli_prepare($conn, "INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, 'iis', $my_id, $user_id, $msg);
-        if (mysqli_stmt_execute($stmt)) {
-            mysqli_stmt_close($stmt);
-            header('Location: profile_others.php?user_id=' . $user_id . '&msg=sent');
-            exit();
-        } else {
-            $chat_feedback = '<div class="alert alert-danger">Failed to send message.</div>';
-            mysqli_stmt_close($stmt);
+$stmt = $pdo->prepare("SELECT * FROM ideas WHERE user_id=? AND is_public=1 ORDER BY created_at DESC");
+$stmt->execute([$user_id]);
+$ideas = $stmt->fetchAll();
+
+// Handle message sending
+$message_sent = false;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
+    if (csrf_verify()) {
+        $my_id = current_user_id();
+        $msg = trim($_POST['message'] ?? '');
+        
+        if (!empty($msg)) {
+            $stmt = $pdo->prepare("INSERT INTO messages (sender_id, receiver_id, message, created_at) VALUES (?, ?, ?, NOW())");
+            if ($stmt->execute([$my_id, $user_id, $msg])) {
+                $message_sent = true;
+            }
         }
     }
 }
-if (isset($_GET['msg']) && $_GET['msg'] === 'sent') {
-    $chat_feedback = '<div class="alert alert-success">Message sent!</div>';
-}
-// Fetch chat messages (show last 10) only if can_chat
+
+// Get conversation history
 $messages = [];
-if ($can_chat) {
-    $stmt = mysqli_prepare($conn, "SELECT m.*, u.username FROM messages m JOIN users u ON m.sender_id=u.id WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?) ORDER BY m.created_at DESC LIMIT 10");
-    mysqli_stmt_bind_param($stmt, 'iiii', $my_id, $user_id, $user_id, $my_id);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
-    while ($row = mysqli_fetch_assoc($res)) {
-        $messages[] = $row;
-    }
-    mysqli_stmt_close($stmt);
-    $messages = array_reverse($messages); // show oldest first
-}
+$my_id = current_user_id();
+$stmt = $pdo->prepare("SELECT m.*, u.username FROM messages m JOIN users u ON m.sender_id=u.id WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?) ORDER BY m.created_at DESC LIMIT 50");
+$stmt->execute([$my_id, $user_id, $user_id, $my_id]);
+$messages = $stmt->fetchAll();
+
+include 'includes/navbar.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -131,7 +115,7 @@ if ($can_chat) {
         <div class="col-lg-6 mb-4">
             <div class="profile-glass shadow position-relative">
                 <h4 class="mb-3 gold-gradient"><i class="bi bi-chat-dots icon-gold"></i> Chat / Messages</h4>
-                <?php if ($can_chat): ?>
+                <?php if ($my_id != $user_id): ?>
                 <div class="chat-glass mb-3">
                   <?php if (empty($messages)): ?>
                     <div class="text-muted">No messages yet.</div>
@@ -145,8 +129,10 @@ if ($can_chat) {
                     <?php endforeach; ?>
                   <?php endif; ?>
                 </div>
-                <?= $chat_feedback ?>
+                <?php endif; ?>
+                <?php if ($my_id != $user_id): ?>
                 <form method="POST">
+                  <?= csrf_field(); ?>
                   <div class="input-group">
                     <input type="text" name="message" class="form-control" placeholder="Type your message..." required>
                     <button class="btn btn-gold" type="submit" name="send_message">Send</button>

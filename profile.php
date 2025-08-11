@@ -1,116 +1,94 @@
 <?php
 ob_start();
-include 'includes/navbar.php';
-require_once 'includes/config.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
-require_once 'includes/auth.php';
+include 'includes/config.php';
+include 'includes/db.php';
+include 'includes/functions.php';
+include 'includes/auth.php';
+include 'includes/csrf.php';
+include 'includes/upload.php';
+include 'includes/i18n.php';
+include 'includes/notifications.php';
 require_login();
 
 $user_id = current_user_id();
-$username = current_username();
-
-// Fetch user info
-$stmt = mysqli_prepare($conn, "SELECT email, password, created_at, bio, image_url FROM users WHERE id=?");
-mysqli_stmt_bind_param($stmt, 'i', $user_id);
-mysqli_stmt_execute($stmt);
-$res = mysqli_stmt_get_result($stmt);
-$user = mysqli_fetch_assoc($res);
-mysqli_stmt_close($stmt);
-
-$edit_success = false;
+$user = [];
 $edit_errors = [];
+$edit_success = false;
 
-// Handle delete account
+// Get user data
+$stmt = $pdo->prepare("SELECT email, password, created_at, bio, image_url FROM users WHERE id=?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch();
+
+// Handle account deletion
 if (isset($_POST['delete_account'])) {
-    $user_id = current_user_id();
-    $stmt = mysqli_prepare($conn, "DELETE FROM users WHERE id=?");
-    mysqli_stmt_bind_param($stmt, 'i', $user_id);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
-    session_unset();
-    session_destroy();
-    header('Location: logout.php');
-    exit();
+    if (csrf_verify()) {
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id=?");
+        $stmt->execute([$user_id]);
+        session_destroy();
+        header('Location: index.php');
+        exit();
+    }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_profile'])) {
-    $new_email = trim($_POST['email'] ?? '');
-    $new_bio = trim($_POST['bio'] ?? '');
-    $new_password = $_POST['password'] ?? '';
-    $confirm_password = $_POST['confirm_password'] ?? '';
-    $new_image_url = $user['image_url'];
-    if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPLOAD_ERR_OK) {
-        $ext = strtolower(pathinfo($_FILES['profile_image']['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg','jpeg','png','gif','webp','svg'];
-        if (in_array($ext, $allowed)) {
-            $newname = 'user_' . $user_id . '_' . time() . '.' . $ext;
-            $dest = 'assets/images/' . $newname;
-            if (!is_dir('assets/images')) mkdir('assets/images', 0777, true);
-            if (move_uploaded_file($_FILES['profile_image']['tmp_name'], $dest)) {
-                $new_image_url = $dest;
+// Handle profile update
+if (isset($_POST['update_profile'])) {
+    if (csrf_verify()) {
+        $new_email = trim($_POST['email'] ?? '');
+        $new_password = $_POST['password'] ?? '';
+        $new_bio = trim($_POST['bio'] ?? '');
+        $new_image_url = $user['image_url'];
+
+        // Handle image upload
+        if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+            $up = upload_image($_FILES['avatar'], 'users');
+            if ($up['ok']) {
+                $new_image_url = $up['path'];
+            } else {
+                $edit_errors[] = $up['error'] ?? 'Upload failed';
+            }
+        }
+
+        // Validate email uniqueness
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE email=? AND id!=?");
+        $stmt->execute([$new_email, $user_id]);
+        if ($stmt->rowCount() > 0) {
+            $edit_errors[] = 'Email already exists.';
+        }
+
+        if (empty($edit_errors)) {
+            if (!empty($new_password)) {
+                $hash = password_hash($new_password, PASSWORD_DEFAULT);
+                $stmt = $pdo->prepare("UPDATE users SET email=?, password=?, bio=?, image_url=? WHERE id=?");
+                $stmt->execute([$new_email, $hash, $new_bio, $new_image_url, $user_id]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE users SET email=?, bio=?, image_url=? WHERE id=?");
+                $stmt->execute([$new_email, $new_bio, $new_image_url, $user_id]);
+            }
+            
+            if ($stmt->rowCount() > 0) {
+                $edit_success = true;
+                $user['email'] = $new_email;
+                $user['bio'] = $new_bio;
+                $user['image_url'] = $new_image_url;
             }
         }
     }
-    if (!validate_email($new_email)) {
-        $edit_errors[] = 'Please enter a valid email address.';
-    }
-    if ($new_password !== '' && strlen($new_password) < 6) {
-        $edit_errors[] = 'Password must be at least 6 characters.';
-    }
-    if ($new_password !== $confirm_password) {
-        $edit_errors[] = 'Passwords do not match.';
-    }
-    // Check if email is taken by another user
-    $stmt = mysqli_prepare($conn, "SELECT id FROM users WHERE email=? AND id!=?");
-    mysqli_stmt_bind_param($stmt, 'si', $new_email, $user_id);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_store_result($stmt);
-    if (mysqli_stmt_num_rows($stmt) > 0) {
-        $edit_errors[] = 'Email is already in use.';
-    }
-    mysqli_stmt_close($stmt);
-
-    if (empty($edit_errors)) {
-        if ($new_password !== '') {
-            $hash = password_hash($new_password, PASSWORD_DEFAULT);
-            $stmt = mysqli_prepare($conn, "UPDATE users SET email=?, password=?, bio=?, image_url=? WHERE id=?");
-            mysqli_stmt_bind_param($stmt, 'ssssi', $new_email, $hash, $new_bio, $new_image_url, $user_id);
-        } else {
-            $stmt = mysqli_prepare($conn, "UPDATE users SET email=?, bio=?, image_url=? WHERE id=?");
-            mysqli_stmt_bind_param($stmt, 'sssi', $new_email, $new_bio, $new_image_url, $user_id);
-        }
-        if (mysqli_stmt_execute($stmt)) {
-            $edit_success = true;
-            $user['email'] = $new_email;
-            $user['bio'] = $new_bio;
-            $user['image_url'] = $new_image_url;
-            if ($new_password !== '') $user['password'] = $hash;
-        } else {
-            $edit_errors[] = 'Failed to update profile. Please try again.';
-        }
-        mysqli_stmt_close($stmt);
-    }
 }
 
+// Get user's ideas
 $my_ideas = [];
-$stmt = mysqli_prepare($conn, "SELECT * FROM ideas WHERE user_id=? ORDER BY created_at DESC");
-mysqli_stmt_bind_param($stmt, 'i', $user_id);
-mysqli_stmt_execute($stmt);
-$res = mysqli_stmt_get_result($stmt);
-while ($row = mysqli_fetch_assoc($res)) {
-    $my_ideas[] = $row;
-}
-mysqli_stmt_close($stmt);
-$voted_ideas = [];
-$stmt = mysqli_prepare($conn, "SELECT v.vote_type, i.title, i.id as idea_id, i.category_id, i.created_at FROM votes v JOIN ideas i ON v.idea_id=i.id WHERE v.user_id=? ORDER BY v.created_at DESC");
-mysqli_stmt_bind_param($stmt, 'i', $user_id);
-mysqli_stmt_execute($stmt);
-$res = mysqli_stmt_get_result($stmt);
-while ($row = mysqli_fetch_assoc($res)) {
-    $voted_ideas[] = $row;
-}
-mysqli_stmt_close($stmt);
+$stmt = $pdo->prepare("SELECT * FROM ideas WHERE user_id=? ORDER BY created_at DESC");
+$stmt->execute([$user_id]);
+$my_ideas = $stmt->fetchAll();
+
+// Get user's votes
+$my_votes = [];
+$stmt = $pdo->prepare("SELECT v.vote_type, i.title, i.id as idea_id, i.category_id, i.created_at FROM votes v JOIN ideas i ON v.idea_id=i.id WHERE v.user_id=? ORDER BY v.created_at DESC");
+$stmt->execute([$user_id]);
+$my_votes = $stmt->fetchAll();
+
+include 'includes/navbar.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -158,9 +136,10 @@ mysqli_stmt_close($stmt);
                         </div>
                     <?php endif; ?>
                     <form method="POST" enctype="multipart/form-data" novalidate>
+                        <?= csrf_field(); ?>
                         <div class="mb-3">
                             <label class="form-label">Username</label>
-                            <input type="text" class="form-control" value="<?= htmlspecialchars($username) ?>" disabled>
+                                                         <input type="text" class="form-control" value="<?= htmlspecialchars(current_username()) ?>" disabled>
                         </div>
                         <div class="mb-3">
                             <label for="email" class="form-label">Email</label>
@@ -185,12 +164,13 @@ mysqli_stmt_close($stmt);
                             <label for="confirm_password" class="form-label">Confirm New Password</label>
                             <input type="password" class="form-control" id="confirm_password" name="confirm_password">
                         </div>
-                        <button type="submit" name="edit_profile" class="btn btn-gold w-100">Save Changes</button>
+                        <button type="submit" name="update_profile" class="btn btn-gold w-100">Save Changes</button>
                     </form>
                     <form method="POST" onsubmit="return confirm('Are you sure you want to delete your account? This cannot be undone.');">
+                        <?= csrf_field(); ?>
                         <button type="submit" name="delete_account" class="btn btn-danger w-100 mt-3">Delete My Account</button>
                     </form>
-                    <img src="<?= htmlspecialchars($user['image_url'] ?? 'https://api.dicebear.com/6.x/initials/svg?seed=' . urlencode($username)) ?>" alt="avatar" class="rounded-circle mb-3" width="96" height="96">
+                                         <img src="<?= htmlspecialchars($user['image_url'] ?? 'https://api.dicebear.com/6.x/initials/svg?seed=' . urlencode(current_username())) ?>" alt="avatar" class="rounded-circle mb-3" width="96" height="96">
                     <ul class="list-unstyled mt-4 mb-0">
                         <li><strong>Job / Education:</strong> <?= htmlspecialchars($user['bio'] ?? '') ?></li>
                         <li><strong>Member since:</strong> <?= htmlspecialchars($user['created_at']) ?></li>
@@ -215,11 +195,11 @@ mysqli_stmt_close($stmt);
             <div class="col-lg-6 mb-4">
                 <div class="profile-glass shadow">
                     <h4 class="mb-3 gold-gradient"><i class="bi bi-clock-history icon-gold"></i> Voting History</h4>
-                    <?php if (empty($voted_ideas)): ?>
+                    <?php if (empty($my_votes)): ?>
                         <div class="alert alert-info">You haven't voted on any ideas yet.</div>
                     <?php else: ?>
                         <ul class="list-group">
-                            <?php foreach ($voted_ideas as $vote): ?>
+                            <?php foreach ($my_votes as $vote): ?>
                                 <li class="list-group-item d-flex justify-content-between align-items-center idea-card">
                                     <a href="idea.php?id=<?= $vote['idea_id'] ?>" class="fw-bold gold-gradient"> <?= htmlspecialchars($vote['title']) ?> </a>
                                     <span class="vote-badge <?= $vote['vote_type'] === 'like' ? 'like' : 'dislike' ?>">
