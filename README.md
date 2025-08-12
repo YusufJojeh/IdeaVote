@@ -1,284 +1,129 @@
-# IdeaVote - Modern Voting Platform
+# IdeaVote - Share Ideas, Win Votes, Build Together 
 
-A full-featured, modern voting and idea sharing platform built with PHP, MySQL, and Bootstrap 5. Features a comprehensive notification system, social features, and advanced user engagement tools.
+A modern, feature-rich platform for sharing and voting on innovative ideas. Built with PHP, MySQL, and Bootstrap 5, featuring full bilingual support, real-time interactions, and a comprehensive admin system.
 
-## 🚀 Modern Features Implemented
+## ✨ Features
 
-### 🔔 **Notifications System**
-- **Real-time notifications** for votes, comments, and follows
-- **In-app notification dropdown** with unread badges
-- **Auto-refresh** every 30 seconds
-- **Mark as read** functionality (individual and bulk)
-- **Notification types**: vote, comment, follow, mention, system
+### 🌍 Multi-Language Support
+- **Full Bilingual Interface**: Arabic and English with RTL support
+- **Dynamic Language Switching**: Real-time language changes
+- **Localized Content**: All text, dates, and numbers properly localized
+- **RTL Layout**: Perfect Arabic text rendering and layout
 
-### 👥 **Social Features**
-- **Follow system**: Follow users and categories
-- **Reactions**: Beyond simple votes - like, love, fire, laugh, wow, sad, angry
-- **Bookmarks**: Save ideas for later
-- **User profiles**: Enhanced with bio, avatar, and social stats
-- **Activity tracking**: View user engagement history
+### 🎨 Theme System
+- **Dark/Light Mode**: Toggle between themes with persistent preferences
+- **Auto Theme Detection**: System preference detection
+- **Smooth Transitions**: Beautiful theme switching animations
+- **Consistent Styling**: Unified design across all pages
 
-### 🔐 **Security & Authentication**
-- **Full password reset flow** with email tokens
-- **CSRF protection** on all forms
-- **Session management** with device tracking
-- **Rate limiting** for actions
-- **Audit logs** for admin actions
-- **Content moderation** queue
+###  Core Features
+- **Idea Creation & Management**: Create, edit, and organize innovative ideas
+- **Smart Voting System**: Like/dislike with real-time vote counts
+- **Emoji Reactions**: Express emotions with reactions (❤️, , , ⭐, etc.)
+- **Rich Comments**: Engage in meaningful discussions
+- **Category Organization**: Organize ideas by topics and interests
+- **Bookmark System**: Save and organize favorite ideas
+- **User Profiles**: Comprehensive user profiles with activity history
 
-### 🌐 **Internationalization**
-- **Multi-language support** (English/Arabic)
-- **RTL layout** support for Arabic
-- **Localized dates and numbers**
-- **Language switcher** in navbar
-- **Comprehensive translation keys**
+###  Real-Time Features
+- **Live Notifications**: Real-time notification system
+- **Dynamic Updates**: Live vote counts and reaction updates
+- **Instant Feedback**: Immediate response to user actions
+- **WebSocket Integration**: Real-time communication (ready for implementation)
 
-### 🎨 **Modern UX**
-- **Dark mode toggle** with persistent preference
-- **Responsive design** with Bootstrap 5
-- **Accessibility features** (WCAG 2.1 AA compliant)
-- **Micro-interactions** and smooth animations
-- **Loading states** and feedback
+### 👥 Social Features
+- **User Following**: Follow other users and see their activity
+- **Activity Feeds**: Personalized activity streams
+- **User Interactions**: Like, comment, and react on ideas
+- **Community Building**: Connect with like-minded innovators
 
-### 📊 **Analytics & Performance**
-- **View counting** for ideas
-- **Trending algorithm** with time decay
-- **Search functionality** with fulltext indexing
-- **Performance optimizations** with database indexes
-- **Caching headers** and ETags
+### ️ Admin System
+- **Comprehensive Dashboard**: Full-featured admin panel
+- **User Management**: View, edit, delete, and manage user accounts
+- **Content Moderation**: Review and moderate reported content
+- **Idea Management**: Feature, edit, and manage ideas
+- **Category Management**: Create and organize categories
+- **Audit Logging**: Complete action tracking and history
+- **Statistics & Analytics**: Detailed platform insights
+- **System Settings**: Configure platform-wide options
 
-### 🔗 **API & Integrations**
-- **RESTful webhooks** for external integrations
-- **JSON API endpoints** for notifications, follows, reactions
-- **Webhook events**: idea.created, vote.created, comment.created, user.registered
-- **HMAC signature verification** for webhook security
+### 🔒 Security & Performance
+- **Advanced Security**: CSRF protection, SQL injection prevention, XSS protection
+- **Rate Limiting**: Prevent abuse and brute force attacks
+- **Password Security**: Secure hashing with bcrypt
+- **Session Management**: Secure session handling
+- **File Upload Security**: Validated and secure file uploads
+- **Performance Optimization**: Caching, lazy loading, optimized queries
+- **SEO Friendly**: Clean URLs, meta tags, structured data
 
-### 📱 **Mobile-First Design**
-- **Touch-friendly** interface
-- **Progressive Web App** features
-- **Offline capability** for cached content
-- **Push notification** ready (infrastructure in place)
+###  Responsive Design
+- **Mobile-First**: Optimized for all device sizes
+- **Touch-Friendly**: Perfect mobile interaction
+- **Progressive Enhancement**: Works on all browsers
+- **Accessibility**: WCAG compliant with keyboard navigation
 
-## 🛠 **Technical Stack**
+## 🚀 Quick Start
 
-- **Backend**: PHP 8.0+ (Procedural)
-- **Database**: MySQL 8.0+ with JSON support
-- **Frontend**: Bootstrap 5, Font Awesome 6
-- **Security**: CSRF tokens, prepared statements, password hashing
-- **File Upload**: Image processing with WebP support
-- **Email**: SMTP integration ready
+### Prerequisites
+- **PHP**: 8.0 or higher
+- **MySQL**: 5.7 or higher (or MariaDB 10.2+)
+- **Web Server**: Apache 2.4+ or Nginx
+- **Extensions**: mod_rewrite, PDO, JSON, mbstring
 
-## 📁 **Project Structure**
+### Installation
 
-```
-IdeaVote/
-├── actions/                 # AJAX endpoints
-│   ├── notifications.php   # Notification system
-│   ├── follow.php          # Follow/unfollow
-│   ├── reactions.php       # Emoji reactions
-│   ├── bookmarks.php       # Bookmark system
-│   ├── password_reset.php  # Password reset flow
-│   ├── webhook.php         # Webhook system
-│   └── vote.php           # Voting system
-├── assets/
-│   ├── css/               # Stylesheets
-│   ├── images/            # Uploaded images
-│   └── lang/              # Translation files
-├── db/
-│   └── migrations/        # Database migrations
-├── includes/              # Core libraries
-│   ├── auth.php          # Authentication
-│   ├── db.php            # Database connection
-│   ├── csrf.php          # CSRF protection
-│   ├── i18n.php          # Internationalization
-│   ├── notifications.php # Notification helpers
-│   └── upload.php        # File upload handling
-└── uploads/              # User uploads
-```
-
-## 🗄 **Database Schema**
-
-### Core Tables
-- `users` - User accounts with preferences
-- `ideas` - Ideas with SEO slugs and trending scores
-- `categories` - Idea categories
-- `votes` - Simple up/down voting
-- `comments` - Idea comments
-- `messages` - User-to-user messaging
-
-### Modern Features Tables
-- `notifications` - User notifications
-- `follows` - User following relationships
-- `category_follows` - Category following
-- `reactions` - Emoji reactions
-- `bookmarks` - Saved ideas
-- `saved_filters` - User filter preferences
-- `audit_logs` - Admin action tracking
-- `reported_content` - Content moderation
-- `user_sessions` - Device management
-- `password_resets` - Password reset tokens
-
-## 🚀 **Installation**
-
-1. **Clone the repository**
+1. **Clone the Repository**
    ```bash
-   git clone https://github.com/yourusername/IdeaVote.git
-   cd IdeaVote
+   git clone https://github.com/yourusername/ideavote.git
+   cd ideavote
    ```
 
-2. **Set up database**
+2. **Set Up Database**
    ```bash
-   # Import the base schema
-   mysql -u root -p your_database < db/migrations/001_phase1.sql
+   # Create database
+   mysql -u root -p -e "CREATE DATABASE ideavote CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
    
-   # Import password reset support
-   mysql -u root -p your_database < db/migrations/002_password_reset.sql
-   
-   # Import modern features
-   mysql -u root -p your_database < db/migrations/003_modern_features.sql
+   # Import schema (run in order)
+   mysql -u root -p ideavote < db/migrations/001_phase1.sql
+   mysql -u root -p ideavote < db/migrations/002_password_reset.sql
+   mysql -u root -p ideavote < db/migrations/003_modern_features.sql
    ```
 
-3. **Configure environment**
+3. **Configure Application**
    ```bash
-   # Copy and edit the environment file
-   cp includes/env.example.php includes/env.php
-   # Edit database credentials and other settings
+   # Copy configuration template
+   cp config.template.php includes/config.php
+   
+   # Edit with your settings
+   nano includes/config.php
    ```
 
-4. **Set up web server**
-   - Point document root to the project directory
-   - Ensure PHP has write permissions to `uploads/` directory
-   - Enable mod_rewrite for clean URLs
+4. **Set Permissions**
+   ```bash
+   chmod +x deploy.sh
+   ./deploy.sh
+   ```
 
-5. **Configure email** (optional)
-   - Set SMTP settings in `includes/env.php`
-   - Configure webhook secret for integrations
+5. **Create Admin User**
+   ```bash
+   # Register normally through the website
+   # Then promote to admin:
+   mysql -u root -p ideavote -e "UPDATE users SET is_admin = 1 WHERE username = 'your_username';"
+   ```
 
-## 🔧 **Configuration**
+## 📁 Project Structure
 
-### Environment Variables (`includes/env.php`)
-```php
-<?php
-// Database
-$_ENV['DB_HOST'] = 'localhost';
-$_ENV['DB_NAME'] = 'ideavote';
-$_ENV['DB_USER'] = 'root';
-$_ENV['DB_PASS'] = '';
-
-// Email (optional)
-$_ENV['SMTP_HOST'] = 'smtp.gmail.com';
-$_ENV['SMTP_PORT'] = 587;
-$_ENV['SMTP_USER'] = 'your-email@gmail.com';
-$_ENV['SMTP_PASS'] = 'your-app-password';
-
-// Webhooks (optional)
-$_ENV['WEBHOOK_SECRET'] = 'your-webhook-secret';
-
-// Security
-$_ENV['SESSION_SECRET'] = 'your-session-secret';
-?>
 ```
-
-## 📱 **Usage**
-
-### For Users
-1. **Register/Login** - Create account or sign in
-2. **Submit Ideas** - Share your innovative ideas
-3. **Vote & React** - Vote on ideas and use emoji reactions
-4. **Follow** - Follow interesting users and categories
-5. **Bookmark** - Save ideas for later reading
-6. **Engage** - Comment and interact with the community
-
-### For Admins
-1. **Moderation** - Review reported content
-2. **Analytics** - View platform statistics
-3. **User Management** - Manage user accounts
-4. **Content Management** - Moderate ideas and comments
-5. **Audit Logs** - Track admin actions
-
-## 🔌 **API Endpoints**
-
-### Notifications
-- `GET /actions/notifications.php` - Get user notifications
-- `POST /actions/notifications.php` - Mark notifications as read
-
-### Social Features
-- `POST /actions/follow.php` - Follow/unfollow users/categories
-- `POST /actions/reactions.php` - Add/remove reactions
-- `POST /actions/bookmarks.php` - Add/remove bookmarks
-
-### Webhooks
-- `POST /actions/webhook.php` - Receive webhook events
-- Events: `idea.created`, `vote.created`, `comment.created`, `user.registered`
-
-## 🎨 **Customization**
-
-### Themes
-- Modify `assets/css/` for custom styling
-- Dark mode support built-in
-- RTL layout support for Arabic
-
-### Languages
-- Add new languages in `assets/lang/`
-- Update `includes/i18n.php` for new language support
-
-### Features
-- Extend notification types in `includes/notifications.php`
-- Add new reaction types in database and UI
-- Customize trending algorithm in SQL view
-
-## 🔒 **Security Features**
-
-- **CSRF Protection** - All forms protected
-- **SQL Injection Prevention** - Prepared statements
-- **XSS Protection** - Output escaping
-- **File Upload Security** - Type validation and re-encoding
-- **Session Security** - Secure session handling
-- **Rate Limiting** - Action throttling
-- **Audit Logging** - Admin action tracking
-
-## 📈 **Performance Optimizations**
-
-- **Database Indexing** - Optimized queries
-- **Caching Headers** - Browser caching
-- **Image Optimization** - WebP support
-- **Lazy Loading** - Deferred content loading
-- **Minified Assets** - Reduced file sizes
-
-## 🤝 **Contributing**
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## 📄 **License**
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 **Support**
-
-- **Documentation**: Check this README and inline code comments
-- **Issues**: Report bugs via GitHub Issues
-- **Discussions**: Use GitHub Discussions for questions
-
-## 🔄 **Changelog**
-
-### v2.0.0 - Modern Features Release
-- ✨ Complete notification system
-- ✨ Social features (follows, reactions, bookmarks)
-- ✨ Full password reset flow
-- ✨ Internationalization (EN/AR)
-- ✨ Dark mode and modern UX
-- ✨ Webhook system for integrations
-- ✨ Content moderation tools
-- ✨ Performance optimizations
-- 🔒 Enhanced security features
-- 📱 Mobile-first responsive design
-
-### v1.0.0 - Initial Release
-- Basic voting system
-- User authentication
-- Idea submission and management
-- Simple admin panel 
+ideavote/
+├── 📁 actions/                 # AJAX handlers and API endpoints
+│   ├── bookmarks.php          # Bookmark management
+│   ├── follow.php             # User following system
+│   ├── language.php           # Language switching
+│   ├── notifications.php      # Notification system
+│   ├── password_reset.php     # Password reset functionality
+│   ├── reactions.php          # Emoji reactions
+│   ├── vote.php               # Voting system
+│   └── webhook.php            # Webhook handlers
+├── 📁 assets/                 # Static assets
+│   ├──  css/               # St
+``` 
