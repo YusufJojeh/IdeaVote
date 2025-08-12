@@ -1,603 +1,398 @@
 <?php
-ob_start();
-include 'includes/config.php';
-include 'includes/db.php';
-include 'includes/i18n.php';
-include 'includes/functions.php';
+require_once 'includes/config.php';
+require_once 'includes/db.php';
+require_once 'includes/functions.php';
+require_once 'includes/auth.php';
+require_once 'includes/i18n.php';
 
-// Get real statistics from database
-$stats = [];
+// Stats + trending ideas
+$idea_count = $user_count = $vote_count = 0;
+$trending_ideas = [];
 try {
-    $stmt = $pdo->query("SELECT COUNT(*) as total_ideas FROM ideas");
-    $stats['ideas'] = $stmt->fetch()['total_ideas'];
-    
-    $stmt = $pdo->query("SELECT COUNT(*) as total_users FROM users");
-    $stats['users'] = $stmt->fetch()['total_users'];
-    
-    $stmt = $pdo->query("SELECT COUNT(*) as total_votes FROM votes");
-    $stats['votes'] = $stmt->fetch()['total_votes'];
-    
-    // Get trending ideas
-    $stmt = $pdo->query("
-        SELECT i.*, u.username, u.avatar, 
-               COUNT(v.id) as vote_count,
-               COUNT(DISTINCT c.id) as comment_count
-        FROM ideas i 
-        LEFT JOIN users u ON i.user_id = u.id
-        LEFT JOIN votes v ON i.id = v.idea_id
-        LEFT JOIN comments c ON i.id = c.idea_id
-        WHERE i.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        GROUP BY i.id
-        ORDER BY vote_count DESC, comment_count DESC
-        LIMIT 3
-    ");
-    $trending_ideas = $stmt->fetchAll();
-} catch (Exception $e) {
-    $stats = ['ideas' => 0, 'users' => 0, 'votes' => 0];
-    $trending_ideas = [];
-}
+    $idea_count = (int)$pdo->query("SELECT COUNT(*) AS c FROM ideas WHERE is_public = 1")->fetch()['c'];
+    $user_count = (int)$pdo->query("SELECT COUNT(*) AS c FROM users")->fetch()['c'];
+    $vote_count = (int)$pdo->query("SELECT COUNT(*) AS c FROM votes")->fetch()['c'];
 
-include 'includes/navbar.php';
+    $stmt = $pdo->query(
+        "SELECT i.id, i.title, i.description, i.image_url, i.votes_count, i.views_count,
+                c.name_en AS category_name, u.username,
+               (SELECT COUNT(*) FROM comments WHERE idea_id = i.id) AS comments_count
+        FROM ideas i 
+         LEFT JOIN categories c ON c.id = i.category_id
+         LEFT JOIN users u ON u.id = i.user_id
+         WHERE i.is_public = 1
+         ORDER BY i.trending_score DESC, i.views_count DESC
+         LIMIT 6"
+    );
+    $trending_ideas = $stmt->fetchAll();
+} catch (Throwable $e) {
+    // fail silently on landing
+}
 ?>
 <!DOCTYPE html>
-<html lang="<?php echo current_language(); ?>" dir="<?php echo lang_dir(); ?>">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo __('IdeaVote – The Ultimate Idea Voting Platform'); ?></title>
-    <meta name="description" content="<?php echo __('Share, vote, and discover world-changing ideas on IdeaVote - the most inspiring platform for innovators.'); ?>">
-    
-    <!-- Open Graph Tags -->
-    <meta property="og:title" content="<?php echo __('IdeaVote – The Ultimate Idea Voting Platform'); ?>">
-    <meta property="og:description" content="<?php echo __('Share, vote, and discover world-changing ideas on IdeaVote - the most inspiring platform for innovators.'); ?>">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="<?php echo $_SERVER['REQUEST_URI']; ?>">
-    
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/countup.js@2.0.7/dist/countUp.umd.js"></script>
+    <title><?= __('Voteapp by IdeaVote — Share Ideas, Win Votes, Build Together') ?> 🚀</title>
+    <meta name="description" content="<?= __('Post ideas, gather reactions, and climb the trending board. Collaborate with a global community to turn sparks into products.') ?>">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/app.css">
     <style>
-        :root {
-            --gold: #FFD700;
-            --gold-light: #FFEF8E;
-            --black: #181818;
-            --gray: #444;
-            --offwhite: #f8fafc;
-            --dark-bg: #1a1a1a;
-            --dark-card: #2d2d2d;
-            --dark-text: #e0e0e0;
+        :root{
+            /* Brand */
+            --gold:#FFD700; --gold-2:#FFEF8E;
+            /* Light (day) palette */
+            --bg:#ffffff; --text:#181818; --muted:#555d68; --card:#ffffff; --border:#e5e7eb; --nav-bg:rgba(255,255,255,.86);
         }
-        
-        [data-theme="dark"] {
-            --black: var(--dark-text);
-            --gray: #b0b0b0;
-            --offwhite: var(--dark-bg);
+        /* Dark (night) overrides */
+        [data-theme="dark"]{
+            --bg:#0b0e13; --text:#e5e7eb; --muted:#9aa3af; --card:#0f141c; --border:#1f2937; --nav-bg:rgba(15,20,28,.8);
         }
-        
-        body {
-            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-            background: var(--offwhite);
-            color: var(--black);
-            min-height: 100vh;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-        
-        .navbar-lux {
-            background: var(--offwhite) !important;
-            box-shadow: 0 8px 32px 0 rgba(24,24,24,0.06);
-            border-bottom: 1px solid #eee;
-            transition: background-color 0.3s ease;
-        }
-        
-        [data-theme="dark"] .navbar-lux {
-            background: var(--dark-card) !important;
-            border-bottom: 1px solid #444;
-        }
-        
-        .gold-gradient {
-            background: linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 100%);
+        *{box-sizing:border-box}
+        body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}        
+        a{color:inherit}
+        .navbar{background:var(--nav-bg)!important;backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--border)}
+        .gold{color:var(--gold)}
+        .btn-gold{background:linear-gradient(90deg,var(--gold),var(--gold-2));color:#111;border:0;font-weight:700}
+        .btn-gold:hover{filter:brightness(1.05);transform:translateY(-1px)}
+        .btn-outline-gold{border:2px solid var(--gold);color:#fff}
+        .section{padding:4.5rem 0}
+        .subtle{color:var(--muted)}
+        .rounded-3xl{border-radius:1.25rem}
+        .shadow-soft{box-shadow:0 10px 30px rgba(0,0,0,.25)}
+        .badge-gold{background:rgba(255,215,0,.15);border:1px solid rgba(255,215,0,.35);color:#ffe98f}
+
+        /* Hero */
+        .hero{position:relative;min-height:82vh;display:flex;align-items:center}
+        .hero::before{content:"";position:absolute;inset:0;background:url('https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1900&q=80') center/cover no-repeat;filter:brightness(.35)}
+        .hero::after{content:"";position:absolute;inset:0;background:radial-gradient(80% 60% at 50% 0%,rgba(255,215,0,.18),transparent 60%)}
+        .hero .content{position:relative;z-index:2}
+        .hero h1{font-weight:800;letter-spacing:-.02em}
+        .hero-cta .btn{padding:.85rem 1.2rem;border-radius:.85rem}
+        .hero-stat{backdrop-filter:blur(8px);background:rgba(15,20,28,.65);border:1px solid var(--border)}
+
+        /* Idea cards */
+        .idea-card{background:var(--card);border:1px solid var(--border)}
+        .idea-card .title{font-weight:700}
+        .idea-card .meta{color:#aab1bb}
+        .idea-thumb{width:100%;height:160px;object-fit:cover;border-top-left-radius:1rem;border-top-right-radius:1rem}
+
+        /* Trust bar */
+        .trust img{opacity:.85;filter:grayscale(1);transition:opacity .2s}
+        .trust img:hover{opacity:1}
+
+        /* Gallery */
+        .gallery img{border-radius:1rem;border:1px solid var(--border);height:230px;object-fit:cover}
+
+        /* Testimonials */
+        .quote{background:linear-gradient(180deg,rgba(255,215,0,.08),rgba(255,215,0,.02));border:1px solid var(--border)}
+
+        /* FAQ */
+        .accordion-button{background:var(--card);color:var(--text);border:1px solid var(--border)}
+        .accordion-item{background:transparent;border:0}
+
+        .footer{border-top:1px solid var(--border);color:var(--muted)}
+
+        /* Gold Gradient Text Effect */
+        .gold-gradient-text {
+            background: linear-gradient(135deg, 
+                #FFD700 0%, 
+                #FFEF8E 25%, 
+                #FFD700 50%, 
+                #FFEF8E 75%, 
+                #FFD700 100%);
+            background-size: 200% 200%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            color: var(--gold);
+            animation: goldShimmer 3s ease-in-out infinite;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(255, 215, 0, 0.3);
         }
-        
-        .btn-gold {
-            background: linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 100%);
-            color: #fff;
-            font-weight: bold;
-            border: none;
-            box-shadow: 0 2px 12px rgba(255,215,0,0.10);
+
+        .gold-gradient-text-static {
+            background: linear-gradient(135deg, 
+                #FFD700 0%, 
+                #FFEF8E 25%, 
+                #FFD700 50%, 
+                #FFEF8E 75%, 
+                #FFD700 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(255, 215, 0, 0.3);
         }
-        
-        .btn-gold:hover {
-            background: linear-gradient(90deg, var(--gold-light) 0%, var(--gold) 100%);
-            color: var(--black);
+
+        @keyframes goldShimmer {
+            0%, 100% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
         }
-        
-        .hero-section {
-            min-height: 90vh;
-            display: flex;
-            align-items: center;
-            background: linear-gradient(120deg, var(--offwhite) 0%, #f8fafc 100%);
-            color: var(--black);
-            position: relative;
-            overflow: hidden;
-            transition: background 0.3s ease;
+
+        /* Enhanced gold gradient with more colors */
+        .gold-gradient-rich {
+            background: linear-gradient(135deg, 
+                #FFD700 0%, 
+                #FFEF8E 15%, 
+                #FFF8DC 30%, 
+                #FFEF8E 45%, 
+                #FFD700 60%, 
+                #FFEF8E 75%, 
+                #FFF8DC 90%, 
+                #FFD700 100%);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: goldShimmerRich 4s ease-in-out infinite;
+            font-weight: 800;
+            text-shadow: 0 4px 8px rgba(255, 215, 0, 0.4);
         }
-        
-        [data-theme="dark"] .hero-section {
-            background: linear-gradient(120deg, var(--dark-bg) 0%, #1f1f1f 100%);
+
+        @keyframes goldShimmerRich {
+            0%, 100% {
+                background-position: 0% 50%;
+            }
+            25% {
+                background-position: 100% 50%;
+            }
+            50% {
+                background-position: 100% 100%;
+            }
+            75% {
+                background-position: 0% 100%;
+            }
         }
-        
-        .hero-glass {
-            background: rgba(255,255,255,0.85);
-            box-shadow: 0 8px 32px 0 rgba(24,24,24,0.08);
-            backdrop-filter: blur(14px);
-            border-radius: 36px;
-            border: 1.5px solid #eee;
-            padding: 3.5rem 2.5rem;
-            transition: background 0.3s ease, border-color 0.3s ease;
-        }
-        
-        [data-theme="dark"] .hero-glass {
-            background: rgba(45,45,45,0.85);
-            border: 1.5px solid #444;
-        }
-        
-        .hero-img {
-            max-width: 500px;
-            border-radius: 36px;
-            box-shadow: 0 8px 32px rgba(24,24,24,0.10);
-            border: 4px solid #fff;
-            animation: float 4s ease-in-out infinite;
-        }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-18px); }
-        }
-        
-        .feature-card {
-            background: rgba(255,255,255,0.95);
-            border-radius: 20px;
-            box-shadow: 0 4px 24px rgba(24,24,24,0.06);
-            padding: 2.2rem 1.5rem;
-            margin-bottom: 2rem;
-            border: 1.5px solid #eee;
-            color: var(--black);
-            transition: all 0.3s ease;
-        }
-        
-        [data-theme="dark"] .feature-card {
-            background: rgba(45,45,45,0.95);
-            border: 1.5px solid #444;
-            color: var(--dark-text);
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-10px) scale(1.04);
-            box-shadow: 0 12px 32px rgba(255,215,0,0.10);
-        }
-        
-        .feature-icon {
-            width: 70px;
-            height: 70px;
-            margin-bottom: 1rem;
-            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 2.5rem;
-            box-shadow: 0 2px 12px rgba(255,215,0,0.10);
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { box-shadow: 0 2px 12px rgba(255,215,0,0.10); }
-            50% { box-shadow: 0 8px 32px rgba(255,215,0,0.18); }
-            100% { box-shadow: 0 2px 12px rgba(255,215,0,0.10); }
-        }
-        
-        .counter {
-            color: var(--gold);
-            text-shadow: 0 2px 8px #fffbe6;
-            font-size: 2.7rem;
-            font-weight: bold;
-        }
-        
-        .counter-label {
-            color: var(--gray);
-            font-size: 1.1rem;
-            font-weight: 500;
-        }
-        
-        .testimonial {
-            border-left: 4px solid var(--gold);
-            background: rgba(255,255,255,0.98);
-            backdrop-filter: blur(6px);
-            color: var(--black);
-            transition: background 0.3s ease, color 0.3s ease;
-        }
-        
-        [data-theme="dark"] .testimonial {
-            background: rgba(45,45,45,0.98);
-            color: var(--dark-text);
-        }
-        
-        .testimonial-avatar {
-            width: 54px;
-            height: 54px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-bottom: 0.5rem;
-            border: 2px solid var(--gold);
-        }
-        
-        .footer-lux {
-            background: var(--offwhite);
-            color: var(--gray);
-            box-shadow: 0 -4px 32px rgba(24,24,24,0.06);
-            border-top-left-radius: 36px;
-            border-top-right-radius: 36px;
-            border-top: 1.5px solid #eee;
-            transition: background 0.3s ease, border-color 0.3s ease;
-        }
-        
-        [data-theme="dark"] .footer-lux {
-            background: var(--dark-card);
-            border-top: 1.5px solid #444;
-        }
-        
-        .footer-link {
-            color: var(--gold);
-            opacity: 0.9;
-            margin-right: 1.5rem;
-            transition: opacity 0.2s;
-        }
-        
-        .footer-link:hover {
-            opacity: 1;
-            text-decoration: underline;
-        }
-        
-        .animated-bg {
-            position: absolute;
-            top: -100px;
-            right: -100px;
-            width: 350px;
-            height: 350px;
-            background: radial-gradient(circle, var(--gold) 0%, var(--offwhite) 80%);
-            opacity: 0.10;
-            filter: blur(60px);
-            z-index: 0;
-            transition: background 0.3s ease;
-        }
-        
-        [data-theme="dark"] .animated-bg {
-            background: radial-gradient(circle, var(--gold) 0%, var(--dark-bg) 80%);
-        }
-        
-        .section-title {
-            font-weight: bold;
-            font-size: 2.3rem;
-            margin-bottom: 1.5rem;
-            letter-spacing: 1px;
-            color: var(--black);
-            transition: color 0.3s ease;
-        }
-        
-        [data-theme="dark"] .section-title {
-            color: var(--dark-text);
-        }
-        
-        .trending-idea-card {
-            background: rgba(255,255,255,0.95);
-            border-radius: 16px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            border: 1px solid #eee;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            color: inherit;
-            display: block;
-        }
-        
-        [data-theme="dark"] .trending-idea-card {
-            background: rgba(45,45,45,0.95);
-            border: 1px solid #444;
-        }
-        
-        .trending-idea-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 24px rgba(255,215,0,0.15);
-            text-decoration: none;
-            color: inherit;
-        }
-        
-        .trending-idea-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid var(--gold);
-        }
-        
-        .trending-stats {
-            display: flex;
-            gap: 1rem;
-            font-size: 0.9rem;
-            color: var(--gray);
-        }
-        
-        .trending-stats i {
-            color: var(--gold);
-        }
-        
-        .language-switcher {
-            position: fixed;
-            top: 100px;
-            right: 20px;
-            z-index: 1000;
-            background: rgba(255,255,255,0.9);
-            border-radius: 25px;
-            padding: 0.5rem;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-            backdrop-filter: blur(10px);
-            transition: background 0.3s ease;
-        }
-        
-        [data-theme="dark"] .language-switcher {
-            background: rgba(45,45,45,0.9);
-        }
-        
-        .language-switcher .btn {
-            border-radius: 20px;
-            padding: 0.25rem 0.75rem;
-            font-size: 0.8rem;
-            border: none;
-            background: transparent;
-            color: var(--gray);
-            transition: all 0.3s ease;
-        }
-        
-        .language-switcher .btn.active {
-            background: var(--gold);
-            color: #fff;
-        }
-        
-        .language-switcher .btn:hover {
-            background: var(--gold);
-            color: #fff;
+
+        /* Dark mode adjustments */
+        [data-theme="dark"] .gold-gradient-text,
+        [data-theme="dark"] .gold-gradient-text-static,
+        [data-theme="dark"] .gold-gradient-rich {
+            text-shadow: 0 2px 4px rgba(255, 215, 0, 0.5);
         }
     </style>
 </head>
-<body data-theme="light">
-    <!-- Language Switcher -->
-    <div class="language-switcher">
-        <button class="btn <?php echo current_language() === 'en' ? 'active' : ''; ?>" onclick="switchLanguage('en')">EN</button>
-        <button class="btn <?php echo current_language() === 'ar' ? 'active' : ''; ?>" onclick="switchLanguage('ar')">عربي</button>
+<body>
+<?php include 'includes/navbar.php'; ?>
+
+<!-- Hero -->
+<header class="hero">
+  <div class="container content">
+    <div class="row align-items-center">
+      <div class="col-lg-7">
+        <span class="badge badge-gold rounded-pill px-3 py-2 mb-3">🔥 <?= __('The community where ideas win') ?></span>
+        <h1 class="gold-gradient-text">
+            Voteapp by IdeaVote — Share Ideas, Win Votes, Build Together <span style="color:none;">🚀</span>
+        </h1>
+        <p class="gold-gradient-text">
+            Post ideas, gather reactions, and climb the trending board. Collaborate with a global community to turn sparks into products.
+        </p>
+        <div class="hero-cta d-flex gap-3 flex-wrap">
+          <?php if (is_logged_in()): ?>
+            <a href="dashboard.php" class="btn btn-gold"><i class="bi bi-rocket-takeoff-fill me-2"></i><?= __('Submit your idea') ?></a>
+            <a href="ideas.php" class="btn btn-outline-gold"><i class="bi bi-stars me-2"></i><?= __('Explore trending') ?></a>
+          <?php else: ?>
+            <a href="register.php" class="btn btn-gold"><i class="bi bi-person-plus-fill me-2"></i><?= __('Join for free') ?></a>
+            <a href="ideas.php" class="btn btn-outline-gold"><i class="bi bi-lightbulb me-2"></i><?= __('Browse ideas') ?></a>
+          <?php endif; ?>
+        </div>
+        <div class="d-flex gap-3 mt-4">
+          <div class="p-3 rounded-3 hero-stat"><div class="h3 mb-0" id="statIdeas">0</div><div class="subtle"><?= __('Ideas shared') ?></div></div>
+          <div class="p-3 rounded-3 hero-stat"><div class="h3 mb-0" id="statUsers">0</div><div class="subtle"><?= __('Members') ?></div></div>
+          <div class="p-3 rounded-3 hero-stat"><div class="h3 mb-0" id="statVotes">0</div><div class="subtle"><?= __('Votes cast') ?></div></div>
+        </div>
     </div>
-
-    <!-- Hero Section -->
-    <section class="hero-section position-relative">
-        <div class="animated-bg"></div>
-        <div class="container position-relative" style="z-index:2;">
-            <div class="row align-items-center justify-content-center">
-                <div class="col-lg-6 mb-4 mb-lg-0">
-                    <div class="hero-glass mx-auto text-center">
-                        <h1 class="display-2 fw-bold mb-3 gold-gradient"><?php echo __('Where Ideas Become Gold'); ?></h1>
-                        <p class="lead mb-4" style="color: var(--gray);"><?php echo __('Welcome to'); ?> <b>IdeaVote</b> – <?php echo __('the most inspiring, beautiful, and powerful platform for sharing, voting, and discovering world-changing ideas. Join a community where your creativity shines and every vote counts.'); ?></p>
-                        <a href="register.php" class="btn btn-gold btn-lg cta-btn shadow"><?php echo __('Get Started Free'); ?></a>
-                        <div class="d-flex justify-content-center gap-4 mt-4">
-                            <span class="feature-icon"><i class="bi bi-lightbulb"></i></span>
-                            <span class="feature-icon"><i class="bi bi-stars"></i></span>
-                            <span class="feature-icon"><i class="bi bi-people-fill"></i></span>
-                            <span class="feature-icon"><i class="bi bi-hand-thumbs-up-fill"></i></span>
+      <div class="col-lg-5 mt-5 mt-lg-0">
+        <div class="rounded-3xl overflow-hidden shadow-soft border" style="border-color:var(--border)">
+          <img alt="Brainstorm" class="w-100" style="object-fit:cover;height:420px" src="https://images.unsplash.com/photo-1553877522-43269d4ea984?auto=format&fit=crop&w=1200&q=80">
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-6 d-flex justify-content-center align-items-center">
-                    <img src="https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=crop&w=600&q=80" alt="<?php echo __('Golden Ideas'); ?>" class="img-fluid hero-img" loading="lazy">
                 </div>
-            </div>
-        </div>
-    </section>
+</header>
 
-    <!-- Features Section -->
-    <section class="py-5">
+<!-- Trust bar -->
+<section class="section trust">
+  <div class="container text-center">
+    <div class="subtle mb-4"><?= __('Join thousands of innovators worldwide') ?></div>
+    <div class="row g-4 justify-content-center align-items-center">
+      <div class="col-6 col-sm-4 col-md-2">
+        <div class="trust-stat">
+          <div class="h4 gold mb-1">10K+</div>
+          <div class="small subtle"><?= __('Active Users') ?></div>
+        </div>
+      </div>
+      <div class="col-6 col-sm-4 col-md-2">
+        <div class="trust-stat">
+          <div class="h4 gold mb-1">5K+</div>
+          <div class="small subtle"><?= __('Ideas Shared') ?></div>
+        </div>
+      </div>
+      <div class="col-6 col-sm-4 col-md-2">
+        <div class="trust-stat">
+          <div class="h4 gold mb-1">50K+</div>
+          <div class="small subtle"><?= __('Votes Cast') ?></div>
+        </div>
+      </div>
+      <div class="col-6 col-sm-4 col-md-2">
+        <div class="trust-stat">
+          <div class="h4 gold mb-1">100+</div>
+          <div class="small subtle"><?= __('Countries') ?></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Trending ideas -->
+<section class="section">
         <div class="container">
-            <div class="text-center mb-5">
-                <span class="gold-gradient section-title"><?php echo __('Why Choose IdeaVote?'); ?></span>
+    <div class="d-flex justify-content-between align-items-end mb-3">
+      <div>
+        <h2 class="mb-1"><?= __('Trending now') ?> 🔥</h2>
+        <div class="subtle"><?= __('Fresh ideas getting the most love right now.') ?></div>
             </div>
-            <div class="row justify-content-center">
-                <div class="col-md-4">
-                    <div class="feature-card text-center">
-                        <span class="feature-icon"><i class="bi bi-lightbulb"></i></span>
-                        <h5 class="fw-bold mb-2 gold-gradient"><?php echo __('Share Brilliant Ideas'); ?></h5>
-                        <p style="color: var(--gray);"><?php echo __('Post your creative, project, or personal ideas and let the world see your brilliance. Every idea is a spark of gold.'); ?></p>
+      <a href="ideas.php" class="btn btn-outline-gold"><?= __('See all') ?></a>
+                    </div>
+    <div class="row g-4">
+      <?php if (empty($trending_ideas)): ?>
+        <div class="col-12"><div class="alert alert-secondary border-0"><?= __('No trending ideas yet. Be the first to post!') ?> ✨</div></div>
+      <?php else: foreach ($trending_ideas as $idea): ?>
+        <div class="col-md-6 col-lg-4">
+          <div class="idea-card rounded-3xl shadow-soft h-100">
+            <?php $thumb = $idea['image_url'] ?: 'https://images.unsplash.com/photo-1504384764586-bb4cdc1707b0?auto=format&fit=crop&w=1200&q=60'; ?>
+            <img class="idea-thumb" src="<?= htmlspecialchars($thumb) ?>" alt="Idea thumbnail">
+            <div class="p-3">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div class="title text-truncate"><?= htmlspecialchars($idea['title']) ?></div>
+                <span class="badge badge-gold rounded-pill px-2 py-1"><?= htmlspecialchars($idea['category_name'] ?: __('General')) ?></span>
+                </div>
+              <div class="subtle mt-1 mb-2" style="min-height:48px;"><?= htmlspecialchars(str_truncate($idea['description'], 110)) ?></div>
+              <div class="d-flex justify-content-between meta">
+                <div class="d-flex gap-3">
+                  <span><i class="bi bi-hand-thumbs-up-fill gold"></i> <?= (int)$idea['votes_count'] ?></span>
+                  <span><i class="bi bi-chat-left-text gold"></i> <?= (int)$idea['comments_count'] ?></span>
+                  <span><i class="bi bi-eye gold"></i> <?= (int)$idea['views_count'] ?></span>
+                    </div>
+                <a class="stretched-link text-decoration-none" href="idea.php?id=<?= (int)$idea['id'] ?>"><?= __('Read') ?></a>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card text-center">
-                        <span class="feature-icon"><i class="bi bi-hand-thumbs-up"></i></span>
-                        <h5 class="fw-bold mb-2 gold-gradient"><?php echo __('Vote & Empower'); ?></h5>
-                        <p style="color: var(--gray);"><?php echo __('Like or dislike ideas, join lively discussions, and help the best ideas rise to the top. Your vote is golden.'); ?></p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="feature-card text-center">
-                        <span class="feature-icon"><i class="bi bi-people"></i></span>
-                        <h5 class="fw-bold mb-2 gold-gradient"><?php echo __('Elite Community'); ?></h5>
-                        <p style="color: var(--gray);"><?php echo __('Connect with a vibrant, ambitious community, collaborate, and make your voice heard in a world of innovators.'); ?></p>
-                    </div>
-                </div>
+          </div>
+        </div>
+      <?php endforeach; endif; ?>
             </div>
         </div>
     </section>
 
-    <!-- Counters Section -->
-    <section class="py-5">
+<!-- How it works -->
+<section class="section">
         <div class="container">
-            <div class="row text-center">
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <span class="feature-icon"><i class="bi bi-lightbulb"></i></span>
-                        <div class="counter" id="ideasCounter">0</div>
-                        <div class="counter-label"><?php echo __('Ideas Shared'); ?></div>
+    <h2 class="mb-4"><?= __('How it works') ?> ⚙️</h2>
+    <div class="row g-4">
+      <div class="col-md-4"><div class="p-4 rounded-3xl idea-card h-100"><div class="fs-2">🧠</div><h5 class="mt-2"><?= __('Share your idea') ?></h5><p class="subtle"><?= __('Share your idea desc') ?></p></div></div>
+      <div class="col-md-4"><div class="p-4 rounded-3xl idea-card h-100"><div class="fs-2">💬</div><h5 class="mt-2"><?= __('Gather feedback') ?></h5><p class="subtle"><?= __('Gather feedback desc') ?></p></div></div>
+      <div class="col-md-4"><div class="p-4 rounded-3xl idea-card h-100"><div class="fs-2">📈</div><h5 class="mt-2"><?= __('Climb the trends') ?></h5><p class="subtle"><?= __('Climb the trends desc') ?></p></div></div>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <span class="feature-icon"><i class="bi bi-people-fill"></i></span>
-                        <div class="counter" id="usersCounter">0</div>
-                        <div class="counter-label"><?php echo __('Active Users'); ?></div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <span class="feature-icon"><i class="bi bi-hand-thumbs-up-fill"></i></span>
-                        <div class="counter" id="votesCounter">0</div>
-                        <div class="counter-label"><?php echo __('Votes Cast'); ?></div>
-                    </div>
-                </div>
+</section>
+
+<!-- Gallery -->
+<section class="section">
+  <div class="container">
+    <h2 class="mb-4"><?= __('Made by makers, worldwide') ?> 🌍</h2>
+    <div class="row g-3 gallery">
+      <div class="col-6 col-md-3"><img class="w-100" src="https://images.unsplash.com/photo-1529336953121-ad5a0d43d0d2?auto=format&fit=crop&w=800&q=60" alt="workspace"></div>
+      <div class="col-6 col-md-3"><img class="w-100" src="https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=800&q=60" alt="team"></div>
+      <div class="col-6 col-md-3"><img class="w-100" src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=800&q=60" alt="collab"></div>
+      <div class="col-6 col-md-3"><img class="w-100" src="https://images.unsplash.com/photo-1529333166437-7750f0f9b1e2?auto=format&fit=crop&w=800&q=60" alt="whiteboard"></div>
             </div>
         </div>
     </section>
 
-    <!-- Trending Ideas Section -->
-    <?php if (!empty($trending_ideas)): ?>
-    <section class="py-5">
+<!-- Testimonials -->
+<section class="section">
         <div class="container">
-            <div class="text-center mb-5">
-                <span class="gold-gradient section-title"><?php echo __('Trending Ideas'); ?></span>
-            </div>
-            <div class="row">
-                <?php foreach ($trending_ideas as $idea): ?>
-                <div class="col-md-4 mb-3">
-                    <a href="idea.php?id=<?php echo $idea['id']; ?>" class="trending-idea-card">
-                        <div class="d-flex align-items-center mb-2">
-                            <img src="<?php echo $idea['avatar'] ?: 'assets/images/default-avatar.png'; ?>" 
-                                 alt="<?php echo htmlspecialchars($idea['username']); ?>" 
-                                 class="trending-idea-avatar me-2">
-                            <span class="fw-bold"><?php echo htmlspecialchars($idea['username']); ?></span>
-                        </div>
-                        <h6 class="fw-bold mb-2"><?php echo htmlspecialchars($idea['title']); ?></h6>
-                        <p class="text-muted small mb-2"><?php echo substr(htmlspecialchars($idea['description']), 0, 100); ?>...</p>
-                        <div class="trending-stats">
-                            <span><i class="bi bi-hand-thumbs-up"></i> <?php echo $idea['vote_count']; ?></span>
-                            <span><i class="bi bi-chat"></i> <?php echo $idea['comment_count']; ?></span>
-                            <span><i class="bi bi-eye"></i> <?php echo $idea['views_count'] ?? 0; ?></span>
-                        </div>
-                    </a>
-                </div>
-                <?php endforeach; ?>
+    <h2 class="mb-4"><?= __('Loved by creators') ?> ❤️</h2>
+    <div class="row g-4">
+      <div class="col-md-4"><div class="p-4 rounded-3xl quote h-100"><p class="mb-3"><?= __('quote1') ?></p><div class="subtle">— Lina</div></div></div>
+      <div class="col-md-4"><div class="p-4 rounded-3xl quote h-100"><p class="mb-3"><?= __('quote2') ?></p><div class="subtle">— Omar</div></div></div>
+      <div class="col-md-4"><div class="p-4 rounded-3xl quote h-100"><p class="mb-3"><?= __('quote3') ?></p><div class="subtle">— Sara</div></div></div>
             </div>
         </div>
     </section>
-    <?php endif; ?>
 
-    <!-- Testimonials Carousel -->
-    <section class="py-5">
+<!-- FAQ -->
+<section class="section">
         <div class="container">
-            <div class="text-center mb-5">
-                <span class="gold-gradient section-title"><?php echo __('What Our Users Say'); ?></span>
+    <h2 class="mb-4"><?= __('FAQ') ?> ❓</h2>
+    <div class="accordion" id="faq">
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="q1"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#a1"><?= __('Is Voteapp free?') ?></button></h2>
+        <div id="a1" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body subtle">Yes. You can register, post ideas, react, and comment for free.</div></div>
             </div>
-            <div id="testimonialCarousel" class="carousel slide" data-bs-ride="carousel">
-                <div class="carousel-inner">
-                    <div class="carousel-item active">
-                        <div class="testimonial p-4 feature-card shadow-sm mx-auto" style="max-width:600px;">
-                            <img src="https://randomuser.me/api/portraits/men/32.jpg" class="testimonial-avatar" alt="Alex">
-                            <div class="mb-2"><i class="bi bi-quote fs-2 gold-gradient"></i></div>
-                            <span class="gold-gradient">"<?php echo __('A platform that truly values my ideas!'); ?>"</span><br><span class="fw-bold" style="color: var(--black);">- Alex</span>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="q2"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#a2"><?= __('Do I keep ownership of my ideas?') ?></button></h2>
+        <div id="a2" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body subtle"><?= __('Absolutely. You own your content. Public ideas are visible to the community.') ?></div></div>
                         </div>
-                    </div>
-                    <div class="carousel-item">
-                        <div class="testimonial p-4 feature-card shadow-sm mx-auto" style="max-width:600px;">
-                            <img src="https://randomuser.me/api/portraits/women/44.jpg" class="testimonial-avatar" alt="Sarah">
-                            <div class="mb-2"><i class="bi bi-quote fs-2 gold-gradient"></i></div>
-                            <span class="gold-gradient">"<?php echo __('The best place to get feedback and support!'); ?>"</span><br><span class="fw-bold" style="color: var(--black);">- Sarah</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item">
-                        <div class="testimonial p-4 feature-card shadow-sm mx-auto" style="max-width:600px;">
-                            <img src="https://randomuser.me/api/portraits/men/54.jpg" class="testimonial-avatar" alt="John">
-                            <div class="mb-2"><i class="bi bi-quote fs-2 gold-gradient"></i></div>
-                            <span class="gold-gradient">"<?php echo __('Inspiring, beautiful, and easy to use.'); ?>"</span><br><span class="fw-bold" style="color: var(--black);">- John</span>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="q3"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#a3"><?= __('How does trending work?') ?></button></h2>
+        <div id="a3" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body subtle"><?= __('A mix of votes, comments, views, and recency — designed to surface quality.') ?></div></div>
                         </div>
                     </div>
                 </div>
-                <button class="carousel-control-prev" type="button" data-bs-target="#testimonialCarousel" data-bs-slide="prev">
-                    <span class="carousel-control-prev-icon"></span>
-                </button>
-                <button class="carousel-control-next" type="button" data-bs-target="#testimonialCarousel" data-bs-slide="next">
-                    <span class="carousel-control-next-icon"></span>
-                </button>
+</section>
+
+<!-- CTA -->
+<section class="section text-center">
+  <div class="container">
+    <div class="p-5 rounded-3xl shadow-soft" style="background:linear-gradient(90deg, rgba(255,215,0,.15), rgba(255,215,0,.05));border:1px solid var(--border)">
+      <h2 class="mb-2"><?= __('Ready to launch your idea?') ?> 🚀</h2>
+      <p class="subtle mb-4"><?= __('Join thousands of makers using Voteapp to validate, build, and grow.') ?></p>
+      <?php if (is_logged_in()): ?>
+        <a class="btn btn-gold" href="dashboard.php"><i class="bi bi-rocket-takeoff me-2"></i><?= __('Open dashboard') ?></a>
+      <?php else: ?>
+        <a class="btn btn-gold" href="register.php"><i class="bi bi-person-plus-fill me-2"></i><?= __('Create your account') ?></a>
+      <?php endif; ?>
             </div>
         </div>
     </section>
 
-    <!-- Call to Action -->
-    <section class="py-5" style="background: linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 100%); color: var(--black);">
-        <div class="container text-center">
-            <h2 class="mb-3 fw-bold gold-gradient"><?php echo __('Ready to turn your ideas into gold?'); ?></h2>
-            <a href="register.php" class="btn btn-gold btn-lg px-5 py-3 fs-5"><?php echo __('Join IdeaVote Now'); ?></a>
-        </div>
-    </section>
-
-    <!-- Footer -->
-    <footer class="py-4 footer-lux text-center border-0 mt-5">
-        <div class="container">
-            <div class="mb-2">
-                <a href="contact.php" class="footer-link"><?php echo __('Contact'); ?></a>
-                <a href="ideas.php" class="footer-link"><?php echo __('Browse Ideas'); ?></a>
-                <a href="register.php" class="footer-link"><?php echo __('Register'); ?></a>
-            </div>
-            <small style="color: var(--gray);"><?php echo __('All rights reserved &copy; Idea Voting Platform 2024'); ?></small>
-        </div>
+<footer class="footer py-4 text-center">
+  <div class="container small">© <?= date('Y') ?> IdeaVote. <?= __('Made with love by makers.') ?> <a class="ms-2" href="contact.php"><?= __('Contact') ?></a></div>
     </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/js/theme.js"></script>
     <script>
-        // Animated counters with real data
-        document.addEventListener('DOMContentLoaded', function() {
-            var ideas = new countUp.CountUp('ideasCounter', <?php echo $stats['ideas']; ?>, {duration: 2});
-            var users = new countUp.CountUp('usersCounter', <?php echo $stats['users']; ?>, {duration: 2});
-            var votes = new countUp.CountUp('votesCounter', <?php echo $stats['votes']; ?>, {duration: 2});
-            ideas.start(); users.start(); votes.start();
-        });
+// Animated counters when visible
+function animateValue(el, end, duration){
+  const start = 0; const range = end - start; const startTime = performance.now();
+  function step(now){
+    const progress = Math.min((now - startTime) / duration, 1);
+    el.textContent = Math.floor(start + range * progress).toLocaleString();
+    if(progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
 
-        // Language switcher
-        function switchLanguage(lang) {
-            fetch('actions/language.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: 'language=' + lang
-            }).then(() => {
-                window.location.reload();
-            });
-        }
-
-        // Dark mode toggle (if not already in navbar)
-        function toggleDarkMode() {
-            const body = document.body;
-            const currentTheme = body.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            
-            body.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-        }
-
-        // Load saved theme
-        document.addEventListener('DOMContentLoaded', function() {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.body.setAttribute('data-theme', savedTheme);
-        });
+const observer = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      animateValue(document.getElementById('statIdeas'), <?= (int)$idea_count ?>, 1200);
+      animateValue(document.getElementById('statUsers'), <?= (int)$user_count ?>, 1400);
+      animateValue(document.getElementById('statVotes'), <?= (int)$vote_count ?>, 1600);
+      observer.disconnect();
+    }
+  });
+});
+observer.observe(document.querySelector('.hero-cta'));
     </script>
 </body>
 </html>

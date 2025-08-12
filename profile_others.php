@@ -9,7 +9,7 @@ include 'includes/i18n.php';
 include 'includes/notifications.php';
 require_login();
 
-$user_id = intval($_GET['id'] ?? 0);
+$user_id = intval($_GET['user_id'] ?? ($_GET['id'] ?? 0));
 if ($user_id <= 0) {
     header('Location: ideas.php');
     exit();

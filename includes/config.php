@@ -1,12 +1,21 @@
 <?php
-require_once __DIR__ . '/env.php';
-// Database configuration (read from .env if available)
-define('DB_HOST', $_ENV['DB_HOST'] ?? 'localhost');
-define('DB_USER', $_ENV['DB_USER'] ?? 'root');
-define('DB_PASS', $_ENV['DB_PASS'] ?? '');
-define('DB_NAME', $_ENV['DB_NAME'] ?? 'idea');
+/**
+ * IdeaVote Configuration
+ */
 
-// Site settings
-$site_name = 'منصة اقتراح الأفكار والتصويت عليها';
-$default_lang = 'ar'; // or 'en'
-?>
+// Error reporting - enable for debugging
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
+// Session configuration
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Set session cookie parameters - only if session not already started
+if (session_status() == PHP_SESSION_ACTIVE) {
+    // Session already started, can't modify parameters
+} else {
+    // Set cookie parameters before session_start
+    session_set_cookie_params(0, '/', '', isset($_SERVER['HTTPS']), true);
+}

@@ -1,93 +1,79 @@
 <?php
-// Secure image upload utility (procedural)
+/**
+ * File upload handling functions
+ */
 
-require_once __DIR__ . '/functions.php';
+// Allowed file types
+$allowed_image_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-if (!function_exists('upload_image')) {
-    /**
-     * @param array $file The $_FILES[...] entry
-     * @param string $subdir 'avatars' | 'ideas'
-     * @param int $maxBytes Default 2MB
-     * @return array ['ok'=>bool,'path'=>string,'error'=>?string,'width'=>int,'height'=>int]
-     */
-    function upload_image(array $file, string $subdir, int $maxBytes = 2097152): array {
-        $result = ['ok' => false, 'path' => '', 'error' => null, 'width' => 0, 'height' => 0];
+// Maximum file size (in bytes) - 2MB
+$max_file_size = 2 * 1024 * 1024;
 
-        if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
-            $result['error'] = 'upload_failed';
-            return $result;
-        }
-        if (($file['size'] ?? 0) <= 0 || $file['size'] > $maxBytes) {
-            $result['error'] = 'upload_too_large';
-            return $result;
-        }
+// Upload directories
+$upload_dirs = [
+    'users' => 'uploads/users/',
+    'ideas' => 'uploads/ideas/',
+    'categories' => 'uploads/categories/'
+];
 
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mime = $finfo->file($file['tmp_name']);
-        $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
-        if (!isset($allowed[$mime])) {
-            $result['error'] = 'upload_invalid_mime';
-            return $result;
-        }
-
-        // Ensure uploads directory exists and is protected
-        $baseDir = __DIR__ . '/../uploads';
-        if (!is_dir($baseDir)) {
-            mkdir($baseDir, 0755, true);
-        }
-        // Create subdir
-        $targetDir = $baseDir . '/' . basename($subdir);
-        if (!is_dir($targetDir)) {
-            mkdir($targetDir, 0755, true);
-        }
-
-        // Re-encode using GD to strip any malicious payloads
-        $image = null;
-        if ($mime === 'image/jpeg') {
-            $image = @imagecreatefromjpeg($file['tmp_name']);
-        } elseif ($mime === 'image/png') {
-            $image = @imagecreatefrompng($file['tmp_name']);
-        } elseif ($mime === 'image/webp') {
-            $image = @imagecreatefromwebp($file['tmp_name']);
-        }
-        if (!$image) {
-            $result['error'] = 'upload_failed';
-            return $result;
-        }
-
-        $width = imagesx($image);
-        $height = imagesy($image);
-        $result['width'] = $width;
-        $result['height'] = $height;
-
-        // Determine extension/encoding: keep PNG if source had alpha
-        $ext = $allowed[$mime];
-        $filename = bin2hex(random_bytes(16)) . '.' . $ext;
-        $targetPathAbs = $targetDir . '/' . $filename;
-
-        $ok = false;
-        if ($mime === 'image/png') {
-            imagesavealpha($image, true);
-            $ok = imagepng($image, $targetPathAbs, 6);
-        } elseif ($mime === 'image/jpeg') {
-            $ok = imagejpeg($image, $targetPathAbs, 85);
-        } elseif ($mime === 'image/webp') {
-            $ok = imagewebp($image, $targetPathAbs, 85);
-        }
-        imagedestroy($image);
-
-        if (!$ok) {
-            $result['error'] = 'upload_failed';
-            return $result;
-        }
-
-        // Return web-relative path
-        $result['ok'] = true;
-        $result['path'] = 'uploads/' . basename($subdir) . '/' . $filename;
-        return $result;
+/**
+ * Upload an image file
+ * 
+ * @param array $file $_FILES array element
+ * @param string $type Upload type (users, ideas, categories)
+ * @return array Result with status and path or error
+ */
+function upload_image($file, $type = 'ideas') {
+    global $allowed_image_types, $max_file_size, $upload_dirs;
+    
+    // Check if file was uploaded
+    if (!isset($file) || $file['error'] !== UPLOAD_ERR_OK) {
+        return ['ok' => false, 'error' => 'File upload failed'];
+    }
+    
+    // Check file size
+    if ($file['size'] > $max_file_size) {
+        return ['ok' => false, 'error' => 'File is too large (max 2MB)'];
+    }
+    
+    // Check file type
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime_type = $finfo->file($file['tmp_name']);
+    
+    if (!in_array($mime_type, $allowed_image_types)) {
+        return ['ok' => false, 'error' => 'Invalid file type. Allowed types: JPEG, PNG, GIF, WEBP'];
+    }
+    
+    // Get upload directory
+    $upload_dir = $upload_dirs[$type] ?? $upload_dirs['ideas'];
+    
+    // Create directory if it doesn't exist
+    if (!file_exists($upload_dir)) {
+        mkdir($upload_dir, 0755, true);
+    }
+    
+    // Generate unique filename
+    $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+    $filename = uniqid() . '_' . time() . '.' . $extension;
+    $filepath = $upload_dir . $filename;
+    
+    // Move uploaded file
+    if (move_uploaded_file($file['tmp_name'], $filepath)) {
+        return ['ok' => true, 'path' => $filepath];
+    } else {
+        return ['ok' => false, 'error' => 'Failed to move uploaded file'];
     }
 }
 
-?>
-
-
+/**
+ * Delete an uploaded file
+ * 
+ * @param string $filepath Path to the file
+ * @return bool True if deleted, false otherwise
+ */
+function delete_uploaded_file($filepath) {
+    if (file_exists($filepath) && is_file($filepath)) {
+        return unlink($filepath);
+    }
+    return false;
+}

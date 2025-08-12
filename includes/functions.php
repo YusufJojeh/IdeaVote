@@ -1,131 +1,320 @@
 <?php
-require_once 'db.php';
+/**
+ * General helper functions
+ */
 
-function escape($str) {
-    // Only escape for HTML output; input should be handled with prepared statements
-    return htmlspecialchars((string)$str, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+/**
+ * Format a datetime string into a human-readable format
+ * 
+ * @param string $datetime Datetime string
+ * @param bool $full Whether to show full date
+ * @return string Formatted date
+ */
+function format_date_time($datetime, $full = false) {
+    $timestamp = strtotime($datetime);
+    $now = time();
+    $diff = $now - $timestamp;
+    
+    // If full date is requested or date is older than 7 days
+    if ($full || $diff > 604800) {
+        return date('M j, Y', $timestamp);
+    }
+    
+    // Within last 24 hours
+    if ($diff < 86400) {
+        $hours = floor($diff / 3600);
+        $minutes = floor(($diff % 3600) / 60);
+        
+        if ($hours > 0) {
+            return $hours . ' hour' . ($hours > 1 ? 's' : '') . ' ago';
+        } else if ($minutes > 0) {
+            return $minutes . ' minute' . ($minutes > 1 ? 's' : '') . ' ago';
+        } else {
+            return 'Just now';
+        }
+    }
+    
+    // Within last 7 days
+    $days = floor($diff / 86400);
+    return $days . ' day' . ($days > 1 ? 's' : '') . ' ago';
 }
 
-function validate_email($email) {
-    return filter_var($email, FILTER_VALIDATE_EMAIL);
+/**
+ * Truncate a string to a specified length
+ * 
+ * @param string $string String to truncate
+ * @param int $length Maximum length
+ * @param string $etc String to append if truncated
+ * @return string Truncated string
+ */
+function str_truncate($string, $length, $etc = '...') {
+    if (mb_strlen($string) <= $length) {
+        return $string;
+    }
+    
+    return mb_substr($string, 0, $length) . $etc;
 }
 
-function validate_username($username) {
-    return preg_match('/^[A-Za-z0-9_\x{0600}-\x{06FF}]{3,30}$/u', $username);
+/**
+ * HTML escape shorthand
+ * 
+ * @param string $string String to escape
+ * @return string Escaped string
+ */
+function h($string) {
+    return htmlspecialchars($string, ENT_QUOTES, 'UTF-8');
 }
 
-function get_vote_counts($idea_id) {
+/**
+ * Check if a user has voted on an idea
+ * 
+ * @param int $userId User ID
+ * @param int $ideaId Idea ID
+ * @return string|bool Vote type ('like', 'dislike') or false if no vote
+ */
+function has_user_voted($userId, $ideaId) {
     global $pdo;
-    $likes = 0; $dislikes = 0;
-    $sql = "SELECT vote_type, COUNT(*) as count FROM votes WHERE idea_id=? GROUP BY vote_type";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$idea_id]);
+    
+    if (!$userId) {
+        return false;
+    }
+    
+    $stmt = $pdo->prepare("SELECT vote_type FROM votes WHERE user_id = ? AND idea_id = ?");
+    $stmt->execute([$userId, $ideaId]);
+    $result = $stmt->fetch();
+    
+    return $result ? $result['vote_type'] : false;
+}
+
+/**
+ * Get vote counts for an idea
+ * 
+ * @param int $ideaId Idea ID
+ * @return array Array with 'like' and 'dislike' counts
+ */
+function get_vote_counts($ideaId) {
+    global $pdo;
+    
+    $likes = 0;
+    $dislikes = 0;
+    
+    $stmt = $pdo->prepare("SELECT vote_type, COUNT(*) as count FROM votes WHERE idea_id = ? GROUP BY vote_type");
+    $stmt->execute([$ideaId]);
+    
     while ($row = $stmt->fetch()) {
-        if ($row['vote_type'] == 'like') $likes = $row['count'];
-        if ($row['vote_type'] == 'dislike') $dislikes = $row['count'];
-    }
-    return ['like' => $likes, 'dislike' => $dislikes];
-}
-
-function get_category_name($cat_id, $lang = 'ar') {
-    global $pdo;
-    $col = $lang == 'en' ? 'name_en' : 'name_ar';
-    $sql = "SELECT $col FROM categories WHERE id=?";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$cat_id]);
-    $row = $stmt->fetch();
-    return $row[$col] ?? '';
-}
-
-function get_client_ip_binary(): string {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-    $bin = inet_pton($ip);
-    return $bin !== false ? $bin : inet_pton('0.0.0.0');
-}
-
-function generate_secure_token(int $length = 32): string {
-    return bin2hex(random_bytes($length));
-}
-
-function hash_token_for_storage(string $rawHexToken): string {
-    // Store binary SHA-256 to save space; input is hex token shown to user
-    return hash('sha256', $rawHexToken, true);
-}
-
-/**
- * Create a URL-friendly slug from a string
- */
-function create_slug($string) {
-    // Convert to lowercase
-    $string = strtolower($string);
-    
-    // Replace non-alphanumeric characters with hyphens
-    $string = preg_replace('/[^a-z0-9\s-]/', '', $string);
-    
-    // Replace multiple spaces or hyphens with single hyphen
-    $string = preg_replace('/[\s-]+/', '-', $string);
-    
-    // Trim hyphens from beginning and end
-    $string = trim($string, '-');
-    
-    // If empty, use 'idea'
-    if (empty($string)) {
-        $string = 'idea';
+        if ($row['vote_type'] === 'like') {
+            $likes = $row['count'];
+        } else if ($row['vote_type'] === 'dislike') {
+            $dislikes = $row['count'];
+        }
     }
     
-    return $string;
+    return [
+        'like' => $likes,
+        'dislike' => $dislikes
+    ];
 }
 
 /**
- * Trigger webhook event
+ * Get category name in specified language
+ * 
+ * @param int $categoryId Category ID
+ * @param string $lang Language code ('en' or 'ar')
+ * @return string Category name
  */
-function trigger_webhook($event, $data) {
+function get_category_name($categoryId, $lang = null) {
     global $pdo;
     
-    // Store webhook event in database for processing
-    $stmt = $pdo->prepare("INSERT INTO webhook_events (event_type, payload, created_at) VALUES (?, ?, NOW())");
-    $stmt->execute([$event, json_encode($data)]);
+    if (!$lang) {
+        $lang = current_language();
+    }
     
-    // In a production environment, you would also send this to external webhook endpoints
-    // For now, we just store it in the database
+    $field = $lang === 'ar' ? 'name_ar' : 'name_en';
+    
+    $stmt = $pdo->prepare("SELECT {$field} FROM categories WHERE id = ?");
+    $stmt->execute([$categoryId]);
+    $result = $stmt->fetch();
+    
+    return $result ? $result[$field] : 'Unknown';
 }
 
 /**
- * Get trending score for an idea
+ * Check if a user has bookmarked an idea
+ * 
+ * @param int $userId User ID
+ * @param int $ideaId Idea ID
+ * @return bool True if bookmarked, false otherwise
  */
-function calculate_trending_score($idea_id) {
+function has_user_bookmarked($userId, $ideaId) {
     global $pdo;
     
-    $stmt = $pdo->prepare("
-        SELECT 
-            i.created_at,
-            (SELECT COUNT(*) FROM votes WHERE idea_id = i.id AND vote_type = 'like') as likes,
-            (SELECT COUNT(*) FROM votes WHERE idea_id = i.id AND vote_type = 'dislike') as dislikes,
-            (SELECT COUNT(*) FROM comments WHERE idea_id = i.id) as comments,
-            (SELECT COUNT(*) FROM reactions WHERE idea_id = i.id) as reactions,
-            i.views_count
-        FROM ideas i 
-        WHERE i.id = ?
-    ");
-    $stmt->execute([$idea_id]);
-    $data = $stmt->fetch();
+    if (!$userId) {
+        return false;
+    }
     
-    if (!$data) return 0;
+    $stmt = $pdo->prepare("SELECT id FROM bookmarks WHERE user_id = ? AND idea_id = ?");
+    $stmt->execute([$userId, $ideaId]);
     
-    // Calculate time decay (newer ideas get higher scores)
-    $age_hours = (time() - strtotime($data['created_at'])) / 3600;
-    $time_decay = max(0.1, 1 - ($age_hours / 168)); // Decay over 1 week
-    
-    // Calculate engagement score
-    $engagement = ($data['likes'] * 2) + ($data['comments'] * 3) + ($data['reactions'] * 1.5) + ($data['views_count'] * 0.1) - ($data['dislikes'] * 1);
-    
-    // Final trending score
-    $trending_score = $engagement * $time_decay;
-    
-    // Update the trending score in database
-    $stmt = $pdo->prepare("UPDATE ideas SET trending_score = ? WHERE id = ?");
-    $stmt->execute([$trending_score, $idea_id]);
-    
-    return $trending_score;
+    return $stmt->rowCount() > 0;
 }
-?> 
+
+/**
+ * Check if a user is following another user
+ * 
+ * @param int $followerId Follower user ID
+ * @param int $followingId Following user ID
+ * @return bool True if following, false otherwise
+ */
+function is_following($followerId, $followingId) {
+    global $pdo;
+    
+    if (!$followerId || !$followingId) {
+        return false;
+    }
+    
+    $stmt = $pdo->prepare("SELECT id FROM follows WHERE follower_id = ? AND following_id = ?");
+    $stmt->execute([$followerId, $followingId]);
+    
+    return $stmt->rowCount() > 0;
+}
+
+/**
+ * Get user's reaction to an idea
+ * 
+ * @param int $userId User ID
+ * @param int $ideaId Idea ID
+ * @return string|null Reaction type or null if no reaction
+ */
+function get_user_reaction($userId, $ideaId) {
+    global $pdo;
+    
+    if (!$userId) {
+        return null;
+    }
+    
+    $stmt = $pdo->prepare("SELECT reaction_type FROM reactions WHERE user_id = ? AND idea_id = ?");
+    $stmt->execute([$userId, $ideaId]);
+    $result = $stmt->fetch();
+    
+    return $result ? $result['reaction_type'] : null;
+}
+
+/**
+ * Get reaction counts for an idea
+ * 
+ * @param int $ideaId Idea ID
+ * @return array Array with reaction types as keys and counts as values
+ */
+function get_reaction_counts($ideaId) {
+    global $pdo;
+    
+    $reactions = [
+        'like' => 0,
+        'love' => 0,
+        'fire' => 0,
+        'laugh' => 0,
+        'wow' => 0,
+        'sad' => 0,
+        'angry' => 0,
+        'rocket' => 0,
+        'brain' => 0,
+        'star' => 0
+    ];
+    
+    $stmt = $pdo->prepare("SELECT reaction_type, COUNT(*) as count FROM reactions WHERE idea_id = ? GROUP BY reaction_type");
+    $stmt->execute([$ideaId]);
+    
+    while ($row = $stmt->fetch()) {
+        if (isset($reactions[$row['reaction_type']])) {
+            $reactions[$row['reaction_type']] = $row['count'];
+        }
+    }
+    
+    return $reactions;
+}
+
+/**
+ * Get count of followers for a user
+ * 
+ * @param int $userId User ID
+ * @return int Follower count
+ */
+function get_follower_count($userId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM follows WHERE following_id = ?");
+    $stmt->execute([$userId]);
+    $result = $stmt->fetch();
+    
+    return (int) $result['count'];
+}
+
+/**
+ * Get count of users being followed by a user
+ * 
+ * @param int $userId User ID
+ * @return int Following count
+ */
+function get_following_count($userId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM follows WHERE follower_id = ?");
+    $stmt->execute([$userId]);
+    $result = $stmt->fetch();
+    
+    return (int) $result['count'];
+}
+
+/**
+ * Get user profile data
+ * 
+ * @param int $userId User ID
+ * @return array|false User data or false if not found
+ */
+function get_user_profile($userId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT id, username, email, bio, image_url, language, theme, created_at FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
+    
+    return $stmt->fetch();
+}
+
+/**
+ * Get trending ideas
+ * 
+ * @param int $limit Number of ideas to return
+ * @return array Array of trending ideas
+ */
+function get_trending_ideas($limit = 5) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT * FROM trending_ideas WHERE is_public = 1 LIMIT ?");
+    $stmt->execute([$limit]);
+    
+    return $stmt->fetchAll();
+}
+
+/**
+ * Parse tags from database format
+ * 
+ * @param string $tags_string Tags string from database
+ * @return array Array of tag strings
+ */
+function parse_tags($tags_string) {
+    if (empty($tags_string)) {
+        return [];
+    }
+    
+    // Handle JSON array format
+    if (strpos($tags_string, '[') === 0) {
+        $tags = json_decode($tags_string, true);
+        if (is_array($tags)) {
+            return array_filter(array_map('trim', $tags));
+        }
+    }
+    
+    // Handle comma-separated format
+    $tags = array_map('trim', explode(',', $tags_string));
+    return array_filter($tags);
+}
