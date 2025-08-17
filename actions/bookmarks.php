@@ -49,6 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = $stmt->execute([$userId, $ideaId]);
         
         if ($success) {
+            // Update bookmark count in ideas table
+            $sql = "UPDATE ideas SET bookmarks_count = (SELECT COUNT(*) FROM bookmarks WHERE idea_id = ?) WHERE id = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$ideaId, $ideaId]);
+            
             echo 'bookmarked';
         } else {
             http_response_code(500);
@@ -61,6 +66,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = $stmt->execute([$userId, $ideaId]);
         
         if ($success) {
+            // Update bookmark count in ideas table
+            $sql = "UPDATE ideas SET bookmarks_count = (SELECT COUNT(*) FROM bookmarks WHERE idea_id = ?) WHERE id = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$ideaId, $ideaId]);
+            
             echo 'removed';
         } else {
             http_response_code(500);

@@ -24,7 +24,7 @@ $query = "SELECT i.*, u.username, u.avatar, c.name_en as category_name,
           (SELECT COUNT(*) FROM votes WHERE votes.idea_id=i.id AND vote_type='dislike') as dislikes,
           (SELECT COUNT(*) FROM comments WHERE comments.idea_id=i.id) as comments_count,
           (SELECT COUNT(*) FROM reactions WHERE reactions.idea_id=i.id) as reactions_count,
-          (SELECT COUNT(*) FROM bookmarks WHERE bookmarks.idea_id=i.id) as bookmarks_count,
+          i.bookmarks_count,
           i.views_count, i.trending_score
           FROM ideas i 
           LEFT JOIN users u ON i.user_id = u.id 
@@ -164,12 +164,18 @@ include 'includes/navbar.php';
         .like-count{color:#10b981}
         .dislike-count{color:#ef4444}
         .comment-count{color:#3b82f6}
+        .bookmark-count{color:var(--gold)}
         .view-count{color:#8b5cf6}
+        
+        /* Author Links */
+        .author-link{color:var(--text);transition:color .2s}
+        .author-link:hover{color:var(--gold);text-decoration:none!important}
 
         /* Bookmark Button */
-        .bookmark-btn{position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,.9);border:none;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--gold);transition:all .2s;backdrop-filter:blur(10px);z-index:10}
-        .bookmark-btn:hover{background:var(--gold);color:white;transform:scale(1.1)}
-        .bookmark-btn.bookmarked{background:var(--gold);color:white}
+        .bookmark-btn{position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,.9);border:none;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--gold);transition:all .2s;backdrop-filter:blur(10px);z-index:10;cursor:pointer}
+        .bookmark-btn:hover{background:var(--gold);color:white;transform:scale(1.1);box-shadow:0 4px 12px rgba(255,215,0,0.3)}
+        .bookmark-btn.bookmarked{background:var(--gold);color:white;box-shadow:0 4px 12px rgba(255,215,0,0.3)}
+        .bookmark-btn:active{transform:scale(0.95)}
 
         /* Tags */
         .idea-tags{margin-bottom:1rem}
@@ -320,7 +326,7 @@ include 'includes/navbar.php';
                                     <img src="<?= $idea['avatar'] ?: 'assets/images/default-avatar.png'; ?>" 
                                          alt="<?= htmlspecialchars($idea['username']); ?>" 
                                                  class="rounded-circle me-2" style="width: 24px; height: 24px; object-fit: cover;">
-                                            <span><?= htmlspecialchars($idea['username']); ?></span>
+                                            <span><a href="profile_others.php?user_id=<?= $idea['user_id'] ?>" class="author-link"><?= htmlspecialchars($idea['username']); ?></a></span>
                                             <span class="ms-auto"><?= format_date_time($idea['created_at']) ?></span>
                                 </div>
                                 </div>
@@ -371,12 +377,16 @@ include 'includes/navbar.php';
                                         <div class="stat-item comment-count">
                                             <i class="bi bi-chat-dots"></i>
                                             <span><?= $idea['comments_count'] ?></span>
-                                    </div>
+                                        </div>
+                                        <div class="stat-item bookmark-count">
+                                            <i class="bi bi-bookmark-fill"></i>
+                                            <span><?= $idea['bookmarks_count'] ?? 0 ?></span>
+                                        </div>
                                         <div class="stat-item view-count">
                                             <i class="bi bi-eye"></i>
                                             <span><?= $idea['views_count'] ?? 0 ?></span>
+                                        </div>
                                     </div>
-                                </div>
                                 
                                     <!-- Actions -->
                                 <div class="d-flex gap-2">
@@ -453,28 +463,94 @@ include 'includes/navbar.php';
         function toggleBookmark(ideaId) {
             const button = event.target.closest('.bookmark-btn');
             const icon = button.querySelector('i');
+            const isBookmarked = icon.classList.contains('bi-bookmark-fill');
+            
+            // Prevent multiple clicks
+            if (button.disabled) return;
+            button.disabled = true;
+            
+            // Show loading state
+            const originalIcon = icon.className;
+            icon.className = 'bi bi-arrow-clockwise spin';
             
             fetch('actions/bookmarks.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: 'action=' + (icon.classList.contains('bi-bookmark-fill') ? 'remove' : 'add') + '&idea_id=' + ideaId
+                body: 'action=' + (isBookmarked ? 'remove' : 'add') + '&idea_id=' + ideaId
             })
             .then(response => response.text())
             .then(result => {
-                if (result === 'success') {
+                if (result === 'bookmarked' || result === 'removed' || result === 'already_bookmarked') {
+                    // Toggle the bookmark state
                     icon.classList.toggle('bi-bookmark');
                     icon.classList.toggle('bi-bookmark-fill');
                     button.classList.toggle('bookmarked');
+                    
+                    // Update bookmark count
+                    const bookmarkCountElement = button.closest('.idea-card').querySelector('.bookmark-count span');
+                    if (bookmarkCountElement) {
+                        let currentCount = parseInt(bookmarkCountElement.textContent) || 0;
+                        if (result === 'bookmarked') {
+                            currentCount++;
+                        } else if (result === 'removed') {
+                            currentCount = Math.max(0, currentCount - 1);
+                        }
+                        bookmarkCountElement.textContent = currentCount;
+                    }
                     
                     // Add animation
                     button.style.transform = 'scale(1.2)';
                     setTimeout(() => {
                         button.style.transform = 'scale(1)';
                     }, 200);
+                    
+                    // Show feedback
+                    showToast(result === 'bookmarked' ? 'Bookmark added!' : 'Bookmark removed!', 'success');
+                } else {
+                    showToast('Error: ' + result, 'error');
+                    // Restore original icon on error
+                    icon.className = originalIcon;
                 }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error occurred while bookmarking', 'error');
+                // Restore original icon on error
+                icon.className = originalIcon;
+            })
+            .finally(() => {
+                // Re-enable button
+                button.disabled = false;
             });
+        }
+        
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = 'position-fixed top-0 end-0 p-3';
+            toast.style.zIndex = '9999';
+            
+            const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+            const textClass = type === 'success' ? 'text-white' : type === 'error' ? 'text-white' : 'text-white';
+            
+            toast.innerHTML = `
+                <div class="toast show ${bgClass} ${textClass}" role="alert">
+                    <div class="toast-header ${bgClass} ${textClass}">
+                        <strong class="me-auto">${type === 'success' ? 'Success!' : type === 'error' ? 'Error!' : 'Info'}</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
         }
 
         // Reaction functionality
@@ -548,7 +624,7 @@ include 'includes/navbar.php';
             submitBtn.disabled = true;
         });
 
-        // Add CSS for spinning animation
+        // Add CSS for spinning animation and improved toast styling
         const style = document.createElement('style');
         style.textContent = `
             .spin {
@@ -557,6 +633,17 @@ include 'includes/navbar.php';
             @keyframes spin {
                 from { transform: rotate(0deg); }
                 to { transform: rotate(360deg); }
+            }
+            
+            .toast {
+                border-radius: 12px;
+                border: none;
+                box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            }
+            
+            .bookmark-btn:disabled {
+                opacity: 0.7;
+                cursor: not-allowed;
             }
         `;
         document.head.appendChild(style);

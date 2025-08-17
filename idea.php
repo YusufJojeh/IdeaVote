@@ -128,6 +128,14 @@ $stmt = $pdo->prepare("SELECT reaction_type, COUNT(*) as count FROM reactions WH
 $stmt->execute([$idea_id]);
 $reactions = $stmt->fetchAll();
 
+// Get current user's reaction
+$user_reaction = null;
+if (is_logged_in()) {
+    $stmt = $pdo->prepare("SELECT reaction_type FROM reactions WHERE user_id = ? AND idea_id = ?");
+    $stmt->execute([current_user_id(), $idea_id]);
+    $user_reaction = $stmt->fetch();
+}
+
 // Check if user has bookmarked this idea
 $user_bookmarked = false;
 if (is_logged_in()) {
@@ -205,6 +213,17 @@ include 'includes/navbar.php';
         .dislike-count{color:#ef4444}
         .comment-count{color:#3b82f6}
         .view-count{color:#8b5cf6}
+        
+        /* Reactions Display */
+        .reactions-display .badge{font-size:0.9rem;padding:0.5rem 0.75rem;border-radius:1rem}
+        .current-reaction .badge{font-size:1rem;padding:0.5rem 1rem;border-radius:1rem}
+        .bg-gold{background:var(--gold)!important;color:#111!important}
+        
+        /* Author Links */
+        .author-link{color:var(--text);transition:color .2s}
+        .author-link:hover{color:var(--gold);text-decoration:none!important}
+        .comment-author a{color:var(--text);transition:color .2s}
+        .comment-author a:hover{color:var(--gold);text-decoration:none!important}
 
         /* Action Buttons */
         .action-buttons{display:flex;gap:1rem;margin-bottom:2rem;flex-wrap:wrap}
@@ -303,7 +322,7 @@ include 'includes/navbar.php';
                         <div class="d-flex align-items-center gap-3 flex-wrap">
                             <span class="badge badge-gold rounded-pill px-3 py-2"><?= htmlspecialchars($idea['category_name']) ?></span>
                             <span><i class="bi bi-calendar3 me-1"></i><?= format_date_time($idea['created_at']) ?></span>
-                            <span><i class="bi bi-person me-1"></i><?= htmlspecialchars($author['username']) ?></span>
+                            <span><i class="bi bi-person me-1"></i><a href="profile_others.php?user_id=<?= $idea['user_id'] ?>" class="author-link"><?= htmlspecialchars($author['username']) ?></a></span>
                             <span><i class="bi bi-eye me-1"></i><?= $idea['views_count'] ?? 0 ?> views</span>
                         </div>
                     </div>
@@ -352,6 +371,28 @@ include 'includes/navbar.php';
                         </div>
                         <?php if ($vote_msg): ?>
                             <div class="alert alert-info"><?= htmlspecialchars($vote_msg) ?></div>
+                        <?php endif; ?>
+                        
+                        <!-- Reactions Display -->
+                        <?php if (!empty($reactions)): ?>
+                            <div class="reactions-display mb-3">
+                                <h6 class="mb-2"><?php echo __('Reactions'); ?></h6>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <?php foreach ($reactions as $reaction): ?>
+                                        <span class="badge bg-light text-dark border">
+                                            <?= htmlspecialchars($reaction['reaction_type']) ?> <?= $reaction['count'] ?>
+                                        </span>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <!-- Current User's Reaction -->
+                        <?php if ($user_reaction): ?>
+                            <div class="current-reaction mb-3">
+                                <small class="text-muted"><?php echo __('Your reaction:'); ?></small>
+                                <span class="badge bg-gold text-dark"><?= htmlspecialchars($user_reaction['reaction_type']) ?></span>
+                            </div>
                         <?php endif; ?>
                     <?php endif; ?>
 
@@ -406,7 +447,7 @@ include 'includes/navbar.php';
                     <div class="d-flex align-items-center">
                         <img src="<?= $author['avatar'] ?: 'assets/images/default-avatar.png'; ?>" alt="<?= htmlspecialchars($author['username']); ?>" class="author-avatar">
                         <div class="author-info">
-                            <h5><?= htmlspecialchars($author['username']) ?></h5>
+                            <h5><a href="profile_others.php?user_id=<?= $idea['user_id'] ?>" class="author-link"><?= htmlspecialchars($author['username']) ?></a></h5>
                             <?php if (!empty($author['bio'])): ?>
                                 <p class="author-bio"><?= htmlspecialchars($author['bio']) ?></p>
                     <?php endif; ?>
@@ -455,7 +496,7 @@ include 'includes/navbar.php';
                                 <div class="comment-header">
                                     <img src="<?= $comment['avatar'] ?: 'assets/images/default-avatar.png'; ?>" alt="<?= htmlspecialchars($comment['username']); ?>" class="comment-avatar">
                                     <div>
-                                        <h6 class="comment-author"><?= htmlspecialchars($comment['username']) ?></h6>
+                                        <h6 class="comment-author"><a href="profile_others.php?user_id=<?= $comment['user_id'] ?>" class="author-link"><?= htmlspecialchars($comment['username']) ?></a></h6>
                                         <p class="comment-date"><?= format_date_time($comment['created_at']) ?></p>
                                     </div>
                                 </div>
@@ -473,7 +514,7 @@ include 'includes/navbar.php';
                     
                     <div class="sidebar-item">
                         <span class="sidebar-label"><?php echo __('Author'); ?></span>
-                        <span class="sidebar-value"><?= htmlspecialchars($author['username']) ?></span>
+                        <span class="sidebar-value"><a href="profile_others.php?user_id=<?= $idea['user_id'] ?>" class="author-link"><?= htmlspecialchars($author['username']) ?></a></span>
                     </div>
                     
                     <div class="sidebar-item">
@@ -609,10 +650,10 @@ include 'includes/navbar.php';
                         toast.className = 'position-fixed top-0 end-0 p-3';
                         toast.style.zIndex = '9999';
                         toast.innerHTML = `
-                            <div class="toast show" role="alert">
-                                <div class="toast-header">
+                            <div class="toast show bg-success text-white" role="alert">
+                                <div class="toast-header bg-success text-white">
                                     <strong class="me-auto">Success!</strong>
-                                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
                                 </div>
                                 <div class="toast-body">
                                     Reaction added successfully! ${reaction}
@@ -623,8 +664,53 @@ include 'includes/navbar.php';
                         
                         setTimeout(() => {
                             toast.remove();
+                            // Refresh the page to show updated reactions
+                            location.reload();
+                        }, 1500);
+                    } else {
+                        // Show error feedback
+                        const toast = document.createElement('div');
+                        toast.className = 'position-fixed top-0 end-0 p-3';
+                        toast.style.zIndex = '9999';
+                        toast.innerHTML = `
+                            <div class="toast show bg-danger text-white" role="alert">
+                                <div class="toast-header bg-danger text-white">
+                                    <strong class="me-auto">Error!</strong>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                                </div>
+                                <div class="toast-body">
+                                    ${result}
+                                </div>
+                            </div>
+                        `;
+                        document.body.appendChild(toast);
+                        
+                        setTimeout(() => {
+                            toast.remove();
                         }, 3000);
                     }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    const toast = document.createElement('div');
+                    toast.className = 'position-fixed top-0 end-0 p-3';
+                    toast.style.zIndex = '9999';
+                    toast.innerHTML = `
+                        <div class="toast show bg-danger text-white" role="alert">
+                            <div class="toast-header bg-danger text-white">
+                                <strong class="me-auto">Error!</strong>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                            </div>
+                            <div class="toast-body">
+                                An error occurred while adding the reaction.
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(toast);
+                    
+                    setTimeout(() => {
+                        toast.remove();
+                    }, 3000);
                 });
             });
         });
