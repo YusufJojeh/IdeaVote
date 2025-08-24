@@ -3,8 +3,8 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 17, 2025 at 03:34 PM
--- Server version: 10.4.32-MariaDB
+-- Generation Time: 24 أغسطس 2025 الساعة 11:30
+-- إصدار الخادم: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -24,7 +24,7 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
--- Table structure for table `audit_logs`
+-- بنية الجدول `audit_logs`
 --
 
 CREATE TABLE `audit_logs` (
@@ -41,7 +41,7 @@ CREATE TABLE `audit_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `audit_logs`
+-- إرجاع أو استيراد بيانات الجدول `audit_logs`
 --
 
 INSERT INTO `audit_logs` (`id`, `admin_id`, `action`, `table_name`, `record_id`, `old_data`, `new_data`, `ip_address`, `user_agent`, `created_at`) VALUES
@@ -66,12 +66,15 @@ INSERT INTO `audit_logs` (`id`, `admin_id`, `action`, `table_name`, `record_id`,
 (21, 1, 'login_failed', 'users', 0, '{\"username\":\"admin@ideavote.com\"}', NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0', '2025-08-12 20:13:10'),
 (22, 1, 'logout', 'users', 1, '{\"username\":\"admin\"}', NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0', '2025-08-12 20:26:50'),
 (23, 2, 'logout', 'users', 2, '{\"username\":\"ahmed\"}', NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0', '2025-08-12 22:29:07'),
-(24, 1, 'logout', 'users', 1, '{\"username\":\"admin\"}', NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0', '2025-08-12 23:25:39');
+(24, 1, 'logout', 'users', 1, '{\"username\":\"admin\"}', NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0', '2025-08-12 23:25:39'),
+(25, 1, 'logout', 'users', 1, '{\"username\":\"admin\"}', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-17 19:19:47'),
+(26, 2, 'logout', 'users', 2, '{\"username\":\"ahmed\"}', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-17 19:53:38'),
+(27, 1, 'logout', 'users', 1, '{\"username\":\"admin\"}', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-24 09:27:50');
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `bookmarks`
+-- بنية الجدول `bookmarks`
 --
 
 CREATE TABLE `bookmarks` (
@@ -82,7 +85,7 @@ CREATE TABLE `bookmarks` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `bookmarks`
+-- إرجاع أو استيراد بيانات الجدول `bookmarks`
 --
 
 INSERT INTO `bookmarks` (`id`, `user_id`, `idea_id`, `created_at`) VALUES
@@ -92,16 +95,15 @@ INSERT INTO `bookmarks` (`id`, `user_id`, `idea_id`, `created_at`) VALUES
 (5, 4, 3, '2025-08-11 21:42:10'),
 (9, 2, 2, '2025-08-11 21:42:10'),
 (10, 3, 3, '2025-08-11 21:42:10'),
-(13, 1, 3, '2025-08-11 22:15:34'),
-(14, 1, 1, '2025-08-11 22:15:39'),
 (18, 4, 1, '2025-08-12 00:35:38'),
 (31, 3, 1, '2025-08-12 00:39:56'),
-(39, 2, 1, '2025-08-12 21:55:47');
+(40, 1, 2, '2025-08-17 18:28:41'),
+(41, 1, 1, '2025-08-17 18:33:43');
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `categories`
+-- بنية الجدول `categories`
 --
 
 CREATE TABLE `categories` (
@@ -113,7 +115,7 @@ CREATE TABLE `categories` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `categories`
+-- إرجاع أو استيراد بيانات الجدول `categories`
 --
 
 INSERT INTO `categories` (`id`, `name_en`, `name_ar`, `description`, `created_at`) VALUES
@@ -126,7 +128,7 @@ INSERT INTO `categories` (`id`, `name_en`, `name_ar`, `description`, `created_at
 -- --------------------------------------------------------
 
 --
--- Table structure for table `category_follows`
+-- بنية الجدول `category_follows`
 --
 
 CREATE TABLE `category_follows` (
@@ -139,7 +141,7 @@ CREATE TABLE `category_follows` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `comments`
+-- بنية الجدول `comments`
 --
 
 CREATE TABLE `comments` (
@@ -151,7 +153,7 @@ CREATE TABLE `comments` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `comments`
+-- إرجاع أو استيراد بيانات الجدول `comments`
 --
 
 INSERT INTO `comments` (`id`, `user_id`, `idea_id`, `comment`, `created_at`) VALUES
@@ -249,7 +251,7 @@ INSERT INTO `comments` (`id`, `user_id`, `idea_id`, `comment`, `created_at`) VAL
 -- --------------------------------------------------------
 
 --
--- Table structure for table `follows`
+-- بنية الجدول `follows`
 --
 
 CREATE TABLE `follows` (
@@ -260,7 +262,7 @@ CREATE TABLE `follows` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `follows`
+-- إرجاع أو استيراد بيانات الجدول `follows`
 --
 
 INSERT INTO `follows` (`id`, `follower_id`, `following_id`, `created_at`) VALUES
@@ -274,7 +276,7 @@ INSERT INTO `follows` (`id`, `follower_id`, `following_id`, `created_at`) VALUES
 -- --------------------------------------------------------
 
 --
--- Table structure for table `ideas`
+-- بنية الجدول `ideas`
 --
 
 CREATE TABLE `ideas` (
@@ -289,6 +291,7 @@ CREATE TABLE `ideas` (
   `is_featured` tinyint(1) DEFAULT 0,
   `image_url` varchar(255) DEFAULT NULL,
   `votes_count` int(11) DEFAULT 0,
+  `bookmarks_count` int(11) DEFAULT 0,
   `views_count` int(11) DEFAULT 0,
   `trending_score` decimal(10,4) DEFAULT 0.0000,
   `tags` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`tags`)),
@@ -296,18 +299,18 @@ CREATE TABLE `ideas` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `ideas`
+-- إرجاع أو استيراد بيانات الجدول `ideas`
 --
 
-INSERT INTO `ideas` (`id`, `user_id`, `category_id`, `title`, `slug`, `description`, `is_public`, `is_approved`, `is_featured`, `image_url`, `votes_count`, `views_count`, `trending_score`, `tags`, `created_at`) VALUES
-(1, 2, 5, 'Smart City Traffic Management System', 'smart-city-traffic-management-system', 'AI-powered traffic management system using real-time data to optimize traffic flow and reduce congestion.', 1, 1, 1, NULL, 3, 64, 162.7000, '[\"smart-city\",\"ai\",\"transportation\"]', '2025-08-11 21:39:12'),
-(2, 2, 2, 'Virtual Reality Education Platform', 'virtual-reality-education-platform', 'Comprehensive VR platform for immersive learning experiences across all subjects.', 1, 1, 1, NULL, 1, 8, 174.7000, '[\"education\",\"vr\",\"technology\"]', '2025-08-11 21:39:12'),
-(3, 4, 3, 'Renewable Energy Microgrid Network', 'renewable-energy-microgrid-network', 'Decentralized renewable energy system connecting solar, wind, and battery storage.', 1, 1, 0, NULL, 2, 20, 176.0000, '[\"renewable-energy\",\"sustainability\"]', '2025-08-11 21:39:12');
+INSERT INTO `ideas` (`id`, `user_id`, `category_id`, `title`, `slug`, `description`, `is_public`, `is_approved`, `is_featured`, `image_url`, `votes_count`, `bookmarks_count`, `views_count`, `trending_score`, `tags`, `created_at`) VALUES
+(1, 2, 5, 'Smart City Traffic Management System', 'smart-city-traffic-management-system', 'AI-powered traffic management system using real-time data to optimize traffic flow and reduce congestion.', 1, 1, 0, NULL, 3, 3, 70, 162.7000, '[\"smart-city\",\"ai\",\"transportation\"]', '2025-08-11 21:39:12'),
+(2, 2, 2, 'Virtual Reality Education Platform', 'virtual-reality-education-platform', 'Comprehensive VR platform for immersive learning experiences across all subjects.', 1, 1, 1, NULL, 1, 4, 12, 174.7000, '[\"education\",\"vr\",\"technology\"]', '2025-08-11 21:39:12'),
+(3, 4, 3, 'Renewable Energy Microgrid Network', 'renewable-energy-microgrid-network', 'Decentralized renewable energy system connecting solar, wind, and battery storage.', 1, 1, 0, NULL, 2, 3, 24, 176.0000, '[\"renewable-energy\",\"sustainability\"]', '2025-08-11 21:39:12');
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `login_attempts`
+-- بنية الجدول `login_attempts`
 --
 
 CREATE TABLE `login_attempts` (
@@ -318,7 +321,7 @@ CREATE TABLE `login_attempts` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `login_attempts`
+-- إرجاع أو استيراد بيانات الجدول `login_attempts`
 --
 
 INSERT INTO `login_attempts` (`id`, `ip`, `username`, `occurred_at`) VALUES
@@ -340,7 +343,7 @@ INSERT INTO `login_attempts` (`id`, `ip`, `username`, `occurred_at`) VALUES
 -- --------------------------------------------------------
 
 --
--- Table structure for table `messages`
+-- بنية الجدول `messages`
 --
 
 CREATE TABLE `messages` (
@@ -354,7 +357,7 @@ CREATE TABLE `messages` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `notifications`
+-- بنية الجدول `notifications`
 --
 
 CREATE TABLE `notifications` (
@@ -369,7 +372,7 @@ CREATE TABLE `notifications` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `notifications`
+-- إرجاع أو استيراد بيانات الجدول `notifications`
 --
 
 INSERT INTO `notifications` (`id`, `user_id`, `type`, `title`, `message`, `data`, `is_read`, `created_at`) VALUES
@@ -403,7 +406,7 @@ INSERT INTO `notifications` (`id`, `user_id`, `type`, `title`, `message`, `data`
 -- --------------------------------------------------------
 
 --
--- Table structure for table `password_resets`
+-- بنية الجدول `password_resets`
 --
 
 CREATE TABLE `password_resets` (
@@ -417,23 +420,23 @@ CREATE TABLE `password_resets` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `reactions`
+-- بنية الجدول `reactions`
 --
 
 CREATE TABLE `reactions` (
   `id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
   `idea_id` int(11) NOT NULL,
-  `reaction_type` enum('like','love','fire','laugh','wow','sad','angry','rocket','brain','star') NOT NULL,
+  `reaction_type` varchar(10) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `reactions`
+-- إرجاع أو استيراد بيانات الجدول `reactions`
 --
 
 INSERT INTO `reactions` (`id`, `user_id`, `idea_id`, `reaction_type`, `created_at`) VALUES
-(1, 2, 3, 'like', '2025-08-11 21:39:12'),
+(1, 2, 3, '🎉', '2025-08-17 19:27:15'),
 (2, 4, 3, 'love', '2025-08-11 21:39:12'),
 (3, 4, 2, 'laugh', '2025-08-11 21:39:12'),
 (4, 4, 1, 'laugh', '2025-08-11 21:39:12'),
@@ -441,71 +444,13 @@ INSERT INTO `reactions` (`id`, `user_id`, `idea_id`, `reaction_type`, `created_a
 (7, 3, 3, 'love', '2025-08-11 21:39:12'),
 (8, 2, 1, 'wow', '2025-08-11 21:39:12'),
 (9, 2, 2, 'like', '2025-08-11 21:39:12'),
-(10, 2, 1, 'fire', '2025-08-11 21:39:12'),
-(11, 2, 3, 'laugh', '2025-08-11 21:39:12'),
 (12, 3, 2, 'wow', '2025-08-11 21:39:12'),
-(15, 4, 2, 'like', '2025-08-11 21:39:12'),
-(16, 4, 3, 'like', '2025-08-11 21:39:12'),
-(19, 3, 2, 'laugh', '2025-08-11 21:39:12'),
-(20, 2, 3, 'fire', '2025-08-11 21:39:12'),
-(23, 2, 2, 'wow', '2025-08-11 21:39:12'),
-(24, 4, 1, 'wow', '2025-08-11 21:39:12'),
-(25, 4, 2, 'wow', '2025-08-11 21:39:12'),
-(27, 2, 2, 'laugh', '2025-08-11 21:41:08'),
-(28, 2, 3, 'wow', '2025-08-11 21:41:08'),
-(29, 4, 3, 'laugh', '2025-08-11 21:41:08'),
-(34, 2, 1, 'love', '2025-08-11 21:41:08'),
-(37, 4, 2, 'love', '2025-08-11 21:41:08'),
-(41, 4, 1, 'like', '2025-08-11 21:41:08'),
-(45, 3, 3, 'like', '2025-08-11 21:41:08'),
-(47, 2, 2, 'love', '2025-08-11 21:41:08'),
-(48, 3, 3, 'fire', '2025-08-11 21:41:08'),
-(49, 3, 1, 'fire', '2025-08-11 21:41:08'),
-(53, 4, 1, 'love', '2025-08-11 21:41:25'),
-(54, 2, 1, 'like', '2025-08-11 21:41:25'),
-(55, 2, 2, 'fire', '2025-08-11 21:41:25'),
-(57, 4, 3, 'wow', '2025-08-11 21:41:25'),
-(62, 3, 2, 'like', '2025-08-11 21:41:25'),
-(65, 3, 3, 'laugh', '2025-08-11 21:41:25'),
-(79, 4, 2, 'fire', '2025-08-11 21:42:10'),
-(80, 2, 3, 'love', '2025-08-11 21:42:10'),
-(88, 3, 1, 'wow', '2025-08-11 21:42:10'),
-(95, 2, 1, 'laugh', '2025-08-11 21:42:10'),
-(99, 3, 2, 'fire', '2025-08-11 21:42:10'),
-(102, 1, 1, '', '2025-08-12 00:20:10'),
-(105, 1, 1, 'sad', '2025-08-12 00:20:15'),
-(106, 1, 1, 'laugh', '2025-08-12 00:20:37'),
-(108, 1, 1, 'love', '2025-08-12 00:21:30'),
-(109, 1, 1, 'angry', '2025-08-12 00:24:49'),
-(112, 1, 1, 'wow', '2025-08-12 00:27:28'),
-(114, 1, 1, 'rocket', '2025-08-12 00:33:25'),
-(115, 4, 3, 'angry', '2025-08-12 00:35:38'),
-(118, 3, 3, 'wow', '2025-08-12 00:35:38'),
-(119, 4, 2, 'brain', '2025-08-12 00:35:38'),
-(122, 2, 1, 'star', '2025-08-12 00:35:38'),
-(126, 3, 2, 'rocket', '2025-08-12 00:35:38'),
-(127, 2, 1, 'brain', '2025-08-12 00:35:38'),
-(129, 4, 2, 'star', '2025-08-12 00:35:38'),
-(131, 4, 2, 'sad', '2025-08-12 00:35:38'),
-(137, 3, 1, 'laugh', '2025-08-12 00:35:38'),
-(138, 4, 2, 'rocket', '2025-08-12 00:35:38'),
-(139, 3, 2, 'love', '2025-08-12 00:35:38'),
-(141, 1, 1, 'brain', '2025-08-12 00:36:01'),
-(142, 2, 1, 'rocket', '2025-08-12 00:39:56'),
-(143, 2, 2, 'rocket', '2025-08-12 00:39:56'),
-(147, 3, 3, 'brain', '2025-08-12 00:39:56'),
-(148, 3, 1, 'like', '2025-08-12 00:39:56'),
-(149, 2, 3, 'star', '2025-08-12 00:39:56'),
-(151, 2, 3, 'angry', '2025-08-12 00:39:56'),
-(152, 3, 3, 'angry', '2025-08-12 00:39:56'),
-(157, 4, 1, 'angry', '2025-08-12 00:39:56'),
-(160, 3, 2, 'sad', '2025-08-12 00:39:56'),
-(162, 4, 3, 'brain', '2025-08-12 00:39:56');
+(167, 1, 1, '❤️', '2025-08-17 19:19:13');
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `reported_content`
+-- بنية الجدول `reported_content`
 --
 
 CREATE TABLE `reported_content` (
@@ -525,7 +470,7 @@ CREATE TABLE `reported_content` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `saved_filters`
+-- بنية الجدول `saved_filters`
 --
 
 CREATE TABLE `saved_filters` (
@@ -564,7 +509,7 @@ CREATE TABLE `trending_ideas` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `users`
+-- بنية الجدول `users`
 --
 
 CREATE TABLE `users` (
@@ -583,11 +528,11 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `users`
+-- إرجاع أو استيراد بيانات الجدول `users`
 --
 
 INSERT INTO `users` (`id`, `username`, `email`, `password`, `is_admin`, `bio`, `image_url`, `language`, `theme`, `email_notifications`, `avatar`, `created_at`) VALUES
-(1, 'admin', 'admin@ideavote.com', '$2y$10$ScgXYrdKaF7OgKT4NjaN/uzNTuh1sZ6r48O7F5RS3vwEZI.J4Qq1S', 1, 'Platform administrator', NULL, 'ar', 'dark', 1, NULL, '2025-08-11 21:39:11'),
+(1, 'admin', 'admin@ideavote.com', '$2y$10$ScgXYrdKaF7OgKT4NjaN/uzNTuh1sZ6r48O7F5RS3vwEZI.J4Qq1S', 1, 'Platform administrator', NULL, 'en', 'light', 1, NULL, '2025-08-11 21:39:11'),
 (2, 'ahmed', 'ahmed@example.com', '$2y$10$S7UxdH.8ARdygvTWADVpju3648JjNqqjjZkGCvGEa.w3Cox21U0ei', 0, 'Technology enthusiast', 'uploads/users/689bb8b1db187_1755035825.png', 'en', 'dark', 1, NULL, '2025-08-11 21:39:11'),
 (3, 'sarah', 'sarah@example.com', '$2y$10$ScgXYrdKaF7OgKT4NjaN/uzNTuh1sZ6r48O7F5RS3vwEZI.J4Qq1S', 0, 'Environmental activist', NULL, 'en', 'auto', 1, NULL, '2025-08-11 21:39:11'),
 (4, 'mohammed', 'mohammed@example.com', '$2y$10$ScgXYrdKaF7OgKT4NjaN/uzNTuh1sZ6r48O7F5RS3vwEZI.J4Qq1S', 0, 'Education reformer', NULL, 'en', 'auto', 1, NULL, '2025-08-11 21:39:12');
@@ -595,7 +540,7 @@ INSERT INTO `users` (`id`, `username`, `email`, `password`, `is_admin`, `bio`, `
 -- --------------------------------------------------------
 
 --
--- Table structure for table `user_sessions`
+-- بنية الجدول `user_sessions`
 --
 
 CREATE TABLE `user_sessions` (
@@ -613,7 +558,7 @@ CREATE TABLE `user_sessions` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `votes`
+-- بنية الجدول `votes`
 --
 
 CREATE TABLE `votes` (
@@ -625,7 +570,7 @@ CREATE TABLE `votes` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `votes`
+-- إرجاع أو استيراد بيانات الجدول `votes`
 --
 
 INSERT INTO `votes` (`id`, `user_id`, `idea_id`, `vote_type`, `created_at`) VALUES
@@ -643,7 +588,7 @@ INSERT INTO `votes` (`id`, `user_id`, `idea_id`, `vote_type`, `created_at`) VALU
 -- --------------------------------------------------------
 
 --
--- Table structure for table `webhook_events`
+-- بنية الجدول `webhook_events`
 --
 
 CREATE TABLE `webhook_events` (
@@ -656,7 +601,7 @@ CREATE TABLE `webhook_events` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dumping data for table `webhook_events`
+-- إرجاع أو استيراد بيانات الجدول `webhook_events`
 --
 
 INSERT INTO `webhook_events` (`id`, `event_type`, `payload`, `processed`, `created_at`, `processed_at`) VALUES
@@ -693,7 +638,9 @@ ALTER TABLE `bookmarks`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `unique_bookmark` (`user_id`,`idea_id`),
   ADD KEY `idx_user` (`user_id`),
-  ADD KEY `idx_idea` (`idea_id`);
+  ADD KEY `idx_idea` (`idea_id`),
+  ADD KEY `idx_bookmarks_user_idea` (`user_id`,`idea_id`),
+  ADD KEY `idx_bookmarks_idea` (`idea_id`);
 
 --
 -- Indexes for table `categories`
@@ -780,7 +727,6 @@ ALTER TABLE `password_resets`
 --
 ALTER TABLE `reactions`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `unique_reaction` (`user_id`,`idea_id`,`reaction_type`),
   ADD KEY `idx_idea_type` (`idea_id`,`reaction_type`),
   ADD KEY `idx_user` (`user_id`);
 
@@ -846,13 +792,13 @@ ALTER TABLE `webhook_events`
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
 
 --
 -- AUTO_INCREMENT for table `bookmarks`
 --
 ALTER TABLE `bookmarks`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
 
 --
 -- AUTO_INCREMENT for table `categories`
@@ -912,7 +858,7 @@ ALTER TABLE `password_resets`
 -- AUTO_INCREMENT for table `reactions`
 --
 ALTER TABLE `reactions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=167;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=168;
 
 --
 -- AUTO_INCREMENT for table `reported_content`
@@ -951,97 +897,97 @@ ALTER TABLE `webhook_events`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
--- Constraints for dumped tables
+-- قيود الجداول المُلقاة.
 --
 
 --
--- Constraints for table `audit_logs`
+-- قيود الجداول `audit_logs`
 --
 ALTER TABLE `audit_logs`
   ADD CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `bookmarks`
+-- قيود الجداول `bookmarks`
 --
 ALTER TABLE `bookmarks`
   ADD CONSTRAINT `bookmarks_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `bookmarks_ibfk_2` FOREIGN KEY (`idea_id`) REFERENCES `ideas` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `category_follows`
+-- قيود الجداول `category_follows`
 --
 ALTER TABLE `category_follows`
   ADD CONSTRAINT `category_follows_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `category_follows_ibfk_2` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `comments`
+-- قيود الجداول `comments`
 --
 ALTER TABLE `comments`
   ADD CONSTRAINT `comments_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `comments_ibfk_2` FOREIGN KEY (`idea_id`) REFERENCES `ideas` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `follows`
+-- قيود الجداول `follows`
 --
 ALTER TABLE `follows`
   ADD CONSTRAINT `follows_ibfk_1` FOREIGN KEY (`follower_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `follows_ibfk_2` FOREIGN KEY (`following_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `ideas`
+-- قيود الجداول `ideas`
 --
 ALTER TABLE `ideas`
   ADD CONSTRAINT `ideas_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `ideas_ibfk_2` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL;
 
 --
--- Constraints for table `messages`
+-- قيود الجداول `messages`
 --
 ALTER TABLE `messages`
   ADD CONSTRAINT `messages_ibfk_1` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `messages_ibfk_2` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `notifications`
+-- قيود الجداول `notifications`
 --
 ALTER TABLE `notifications`
   ADD CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `password_resets`
+-- قيود الجداول `password_resets`
 --
 ALTER TABLE `password_resets`
   ADD CONSTRAINT `password_resets_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `reactions`
+-- قيود الجداول `reactions`
 --
 ALTER TABLE `reactions`
   ADD CONSTRAINT `reactions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `reactions_ibfk_2` FOREIGN KEY (`idea_id`) REFERENCES `ideas` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `reported_content`
+-- قيود الجداول `reported_content`
 --
 ALTER TABLE `reported_content`
   ADD CONSTRAINT `reported_content_ibfk_1` FOREIGN KEY (`reporter_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `reported_content_ibfk_2` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 
 --
--- Constraints for table `saved_filters`
+-- قيود الجداول `saved_filters`
 --
 ALTER TABLE `saved_filters`
   ADD CONSTRAINT `saved_filters_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `user_sessions`
+-- قيود الجداول `user_sessions`
 --
 ALTER TABLE `user_sessions`
   ADD CONSTRAINT `user_sessions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- Constraints for table `votes`
+-- قيود الجداول `votes`
 --
 ALTER TABLE `votes`
   ADD CONSTRAINT `votes_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
