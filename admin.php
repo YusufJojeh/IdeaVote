@@ -122,6 +122,64 @@ if (isset($_POST['action'])) {
     $action = $_POST['action'];
     
     switch ($action) {
+        case 'add_user':
+            $username = trim($_POST['username']);
+            $email = trim($_POST['email']);
+            $password = $_POST['password'];
+            $confirm_password = $_POST['confirm_password'];
+            $is_admin = intval($_POST['is_admin']);
+            $bio = trim($_POST['bio'] ?? '');
+            
+            // Validation
+            if (empty($username) || empty($email) || empty($password)) {
+                $error = __('All required fields must be filled');
+                break;
+            }
+            
+            if ($password !== $confirm_password) {
+                $error = __('Passwords do not match');
+                break;
+            }
+            
+            if (strlen($password) < 6) {
+                $error = __('Password must be at least 6 characters long');
+                break;
+            }
+            
+            // Check if username or email already exists
+            try {
+                $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+                $stmt->execute([$username, $email]);
+                if ($stmt->rowCount() > 0) {
+                    $error = __('Username or email already exists');
+                    break;
+                }
+                
+                // Hash password and insert user
+                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                $stmt = $pdo->prepare("INSERT INTO users (username, email, password, is_admin, bio, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([$username, $email, $hashed_password, $is_admin, $bio]);
+                
+                $message = __('User added successfully');
+                
+                // Log the action
+                $new_user_id = $pdo->lastInsertId();
+                $stmt = $pdo->prepare("INSERT INTO audit_logs (admin_id, action, table_name, record_id, new_data, ip_address, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([
+                    $user_id,
+                    'create',
+                    'users',
+                    $new_user_id,
+                    json_encode(['username' => $username, 'email' => $email, 'is_admin' => $is_admin]),
+                    $_SERVER['REMOTE_ADDR'] ?? '',
+                    $_SERVER['HTTP_USER_AGENT'] ?? ''
+                ]);
+                
+            } catch (Exception $e) {
+                $error = __('Error adding user: ') . $e->getMessage();
+            }
+            break;
+            
         case 'delete_user':
             $target_user_id = intval($_POST['user_id']);
             if ($target_user_id != 1) { // Prevent deleting main admin
@@ -319,6 +377,38 @@ if ($active_tab === 'users') {
             border-color: var(--gold);
             color: var(--text);
             box-shadow: 0 0 0 0.2rem rgba(255, 215, 0, 0.25);
+        }
+        
+        /* Modal Styling */
+        .modal-content {
+            border-radius: 1rem;
+            border: none;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            background: var(--card);
+        }
+        
+        .modal-header {
+            border-bottom: 1px solid var(--border);
+            border-radius: 1rem 1rem 0 0;
+            background: var(--card);
+        }
+        
+        .modal-footer {
+            border-top: 1px solid var(--border);
+            border-radius: 0 0 1rem 1rem;
+            background: var(--card);
+        }
+        
+        .modal-title {
+            font-weight: 600;
+            color: var(--text);
+        }
+        
+        .form-label {
+            font-weight: 500;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
         }
         
         .btn-primary {
@@ -688,6 +778,9 @@ if ($active_tab === 'users') {
                     <?php if ($active_tab === 'users'): ?>
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h2><?= __('Users Management') ?></h2>
+                            <button type="button" class="btn btn-gold" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                                <i class="bi bi-person-plus me-2"></i><?= __('Add User') ?>
+                            </button>
                         </div>
                         
                         <div class="card">
@@ -963,6 +1056,58 @@ if ($active_tab === 'users') {
         </div>
     </div>
     
+    <!-- Add User Modal -->
+    <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addUserModalLabel">
+                        <i class="bi bi-person-plus me-2"></i><?= __('Add New User') ?>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" id="addUserForm">
+                    <input type="hidden" name="action" value="add_user">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="username" class="form-label"><?= __('Username') ?> *</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label"><?= __('Email') ?> *</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label"><?= __('Password') ?> *</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label"><?= __('Confirm Password') ?> *</label>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="is_admin" class="form-label"><?= __('Role') ?></label>
+                            <select class="form-select" id="is_admin" name="is_admin">
+                                <option value="0"><?= __('User') ?></option>
+                                <option value="1"><?= __('Admin') ?></option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="bio" class="form-label"><?= __('Bio') ?></label>
+                            <textarea class="form-control" id="bio" name="bio" rows="3" placeholder="<?= __('Optional user bio...') ?>"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= __('Cancel') ?></button>
+                        <button type="submit" class="btn btn-gold">
+                            <i class="bi bi-person-plus me-2"></i><?= __('Add User') ?>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="assets/js/theme.js"></script>
     <script>
@@ -986,6 +1131,35 @@ if ($active_tab === 'users') {
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Page loaded, applying theme:', '<?= $current_theme ?>');
             applyTheme('<?= $current_theme ?>');
+            
+            // Add User Form Validation
+            const addUserForm = document.getElementById('addUserForm');
+            if (addUserForm) {
+                addUserForm.addEventListener('submit', function(e) {
+                    const password = document.getElementById('password').value;
+                    const confirmPassword = document.getElementById('confirm_password').value;
+                    
+                    if (password !== confirmPassword) {
+                        e.preventDefault();
+                        alert('<?= __('Passwords do not match') ?>');
+                        return false;
+                    }
+                    
+                    if (password.length < 6) {
+                        e.preventDefault();
+                        alert('<?= __('Password must be at least 6 characters long') ?>');
+                        return false;
+                    }
+                });
+            }
+            
+            // Clear form when modal is closed
+            const addUserModal = document.getElementById('addUserModal');
+            if (addUserModal) {
+                addUserModal.addEventListener('hidden.bs.modal', function() {
+                    addUserForm.reset();
+                });
+            }
         });
     </script>
 </body>
